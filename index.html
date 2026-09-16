@@ -1,348 +1,1945 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Spotlight — Знакомства Москвы</title>
-  
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <style>
-    :root {
-      --bg: #0b0f19;
-      --card-bg: #1e293b;
-      --accent-like: #10b981;
-      --accent-dislike: #f43f5e;
-      --primary: #6366f1;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#090d16">
+<title>Spotlight — Telegram Mini App</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+<script>
+tailwind.config = {
+    theme: {
+        extend: {
+            fontFamily: { sans: ['Inter', 'sans-serif'] },
+            colors: {
+                deep: '#090d16',
+                panel: 'rgba(18, 24, 38, 0.75)',
+                neon: '#6366f1',
+                cyber: '#06b6d4',
+                emerald: '#10b981'
+            }
+        }
+    }
+}
+</script>
+
+<style>
+    * {
+        -webkit-tap-highlight-color: transparent;
+        box-sizing: border-box;
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
-    body { background-color: var(--bg); color: var(--text); overflow: hidden; height: 100vh; width: 100vw; }
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #090d16;
+        color: #fff;
+        font-family: 'Inter', sans-serif;
+        user-select: none;
+        -webkit-user-select: none;
+        overscroll-behavior: none;
+    }
 
-    #app { display: flex; flex-direction: column; height: 100vh; width: 100vw; position: relative; }
+    #app {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
 
-    /* Табы */
-    .tab-content { flex: 1; display: none; position: relative; width: 100%; height: calc(100vh - 65px); }
-    .tab-content.active { display: block; }
+    .glass {
+        background: rgba(18, 24, 38, 0.75);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
 
-    /* Карта */
-    #map { width: 100%; height: 100%; z-index: 1; }
-    
-    .leaflet-popup-content-wrapper { background: var(--card-bg); color: var(--text); border-radius: 16px; padding: 5px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); }
-    .leaflet-popup-tip { background: var(--card-bg); }
-    .map-popup-card { text-align: center; padding: 10px; width: 180px; }
-    .map-popup-card img { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; margin-bottom: 8px; }
-    .map-popup-card h4 { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
-    .map-popup-card p { font-size: 12px; color: var(--text-muted); }
+    .glass-strong {
+        background: rgba(12, 16, 26, 0.92);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
 
-    /* Свайпы */
-    .swipe-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 15px; background: radial-gradient(circle at top, #1e1b4b 0%, var(--bg) 70%); }
-    .card-deck { position: relative; width: 100%; max-width: 380px; height: 70vh; }
-    .card { position: absolute; width: 100%; height: 100%; background: var(--card-bg); border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; box-shadow: 0 20px 30px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1); touch-action: none; transition: transform 0.1s ease-out; }
-    .card-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
-    .card-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 60%; background: linear-gradient(to top, rgba(11,15,25,0.95) 10%, rgba(11,15,25,0.4) 60%, transparent); pointer-events: none; }
-    .card-info { position: relative; z-index: 3; pointer-events: none; }
-    .card-name { font-size: 26px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
-    .card-badge { font-size: 12px; padding: 2px 8px; background: rgba(99,102,241,0.3); border: 1px solid var(--primary); border-radius: 12px; color: #a5b4fc; }
-    .card-bio { font-size: 14px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
+    /* SCREENS */
+    .screen {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+        padding-bottom: 96px;
+    }
 
-    .swipe-actions { display: flex; gap: 30px; margin-top: 20px; z-index: 10; }
-    .btn-action { width: 65px; height: 65px; border-radius: 50%; border: none; font-size: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; box-shadow: 0 10px 20px rgba(0,0,0,0.4); transition: transform 0.2s; }
-    .btn-dislike { background: var(--accent-dislike); }
-    .btn-like { background: var(--accent-like); }
-    .btn-action:active { transform: scale(0.85); }
+    .screen.active {
+        opacity: 1;
+        visibility: visible;
+    }
 
-    /* Профиль и Формы */
-    .form-container { padding: 25px; overflow-y: auto; height: 100%; background: var(--bg); }
-    .form-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; color: var(--text); }
-    .form-group { margin-bottom: 18px; }
-    .form-group label { display: block; margin-bottom: 6px; color: var(--text-muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .form-control { width: 100%; padding: 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); background: #1e293b; color: #fff; font-size: 15px; outline: none; transition: border-color 0.2s; }
-    .form-control:focus { border-color: var(--primary); }
-    .btn-primary { width: 100%; padding: 16px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 14px; color: white; font-weight: 700; font-size: 16px; cursor: pointer; box-shadow: 0 8px 20px rgba(99,102,241,0.3); }
+    /* MAP */
+    #map-container {
+        position: absolute;
+        inset: 0;
+    }
 
-    /* Навигация */
-    .nav-bar { height: 65px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-around; align-items: center; backdrop-filter: blur(12px); z-index: 1000; }
-    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 10px; font-weight: 600; cursor: pointer; transition: color 0.2s; }
-    .nav-item i { font-size: 22px; }
-    .nav-item.active { color: #38bdf8; }
+    #map {
+        width: 100%;
+        height: 100%;
+    }
 
-    /* Админка */
-    .admin-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
-    .btn-del { background: #ef4444; border: none; color: white; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
-  </style>
+    .maplibregl-ctrl-attrib,
+    .maplibregl-ctrl-bottom-right,
+    .maplibregl-ctrl-bottom-left {
+        display: none !important;
+    }
+
+    .maplibregl-canvas {
+        outline: none !important;
+    }
+
+    /* CUSTOM MARKER */
+    .user-marker {
+        position: relative;
+        cursor: pointer;
+        transform: translate(-50%, -50%);
+    }
+
+    .user-marker-inner {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        position: relative;
+        background: #1e293b;
+        overflow: hidden;
+        border: 2px solid rgba(255,255,255,0.85);
+        box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    }
+
+    .user-marker-inner img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .user-marker-inner .initial {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 22px;
+        color: #fff;
+    }
+
+    .user-marker.ring-indigo .user-marker-inner { border-color: #6366f1; }
+    .user-marker.ring-cyan .user-marker-inner { border-color: #06b6d4; }
+    .user-marker.ring-emerald .user-marker-inner { border-color: #10b981; }
+    .user-marker.ring-pink .user-marker-inner { border-color: #ec4899; }
+
+    .user-marker::before {
+        content: '';
+        position: absolute;
+        inset: -8px;
+        border-radius: 50%;
+        border: 2px solid #6366f1;
+        opacity: 0;
+        animation: pulse-ring 2.4s ease-out infinite;
+    }
+
+    .user-marker.ring-cyan::before { border-color: #06b6d4; animation-delay: 0.3s; }
+    .user-marker.ring-emerald::before { border-color: #10b981; animation-delay: 0.6s; }
+    .user-marker.ring-pink::before { border-color: #ec4899; animation-delay: 0.9s; }
+
+    @keyframes pulse-ring {
+        0% { opacity: 0.8; transform: scale(0.85); }
+        100% { opacity: 0; transform: scale(1.6); }
+    }
+
+    .user-marker-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #10b981;
+        border: 2px solid #090d16;
+        box-shadow: 0 0 8px #10b981;
+        animation: online-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes online-pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(0.85); opacity: 0.6; }
+    }
+
+    .user-marker-label {
+        position: absolute;
+        top: 56px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(12, 16, 26, 0.92);
+        backdrop-filter: blur(12px);
+        padding: 4px 10px;
+        border-radius: 100px;
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+        border: 1px solid rgba(255,255,255,0.1);
+        color: #fff;
+        pointer-events: none;
+    }
+
+    /* BOTTOM SHEET */
+    .sheet-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.28s ease, visibility 0.28s ease;
+        z-index: 200;
+        backdrop-filter: blur(2px);
+    }
+
+    .sheet-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .bottom-sheet {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 201;
+        background: rgba(12, 16, 26, 0.96);
+        backdrop-filter: blur(28px);
+        -webkit-backdrop-filter: blur(28px);
+        border-top-left-radius: 28px;
+        border-top-right-radius: 28px;
+        border-top: 1px solid rgba(255,255,255,0.09);
+        transform: translateY(100%);
+        transition: transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+        max-height: 88vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 -20px 60px rgba(0,0,0,0.6);
+    }
+
+    .bottom-sheet.active {
+        transform: translateY(0);
+    }
+
+    .sheet-handle-area {
+        padding: 10px 0 6px;
+        display: flex;
+        justify-content: center;
+        cursor: grab;
+        flex-shrink: 0;
+        touch-action: none;
+    }
+
+    .sheet-handle {
+        width: 42px;
+        height: 4px;
+        background: rgba(255,255,255,0.22);
+        border-radius: 4px;
+    }
+
+    .sheet-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px 20px 28px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .sheet-content::-webkit-scrollbar { display: none; }
+    .sheet-content { scrollbar-width: none; }
+
+    /* NAV BAR */
+    .nav-bar {
+        position: fixed;
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        left: 14px;
+        right: 14px;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        padding: 8px;
+        border-radius: 24px;
+        background: rgba(14, 18, 30, 0.9);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+    }
+
+    .nav-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        padding: 8px 4px;
+        border-radius: 18px;
+        color: rgba(255,255,255,0.42);
+        transition: all 0.22s ease;
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: 600;
+        border: none;
+        background: transparent;
+    }
+
+    .nav-item i {
+        font-size: 17px;
+    }
+
+    .nav-item.active {
+        color: #fff;
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+    }
+
+    .nav-item:active {
+        transform: scale(0.94);
+    }
+
+    /* SWIPE CARDS */
+    .card-stack {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .swipe-card {
+        position: absolute;
+        width: calc(100% - 40px);
+        max-width: 400px;
+        height: 78%;
+        max-height: 600px;
+        border-radius: 26px;
+        overflow: hidden;
+        background: #1a1f2e;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.75);
+        cursor: grab;
+        will-change: transform;
+        touch-action: none;
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .swipe-card:active {
+        cursor: grabbing;
+    }
+
+    .swipe-card-bg {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center;
+    }
+
+    .swipe-card-gradient {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 40%, transparent 70%);
+    }
+
+    .swipe-card-info {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 24px;
+        z-index: 3;
+    }
+
+    .swipe-indicator {
+        position: absolute;
+        top: 40px;
+        padding: 8px 20px;
+        border: 4px solid;
+        border-radius: 12px;
+        font-weight: 900;
+        font-size: 28px;
+        letter-spacing: 2px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        z-index: 5;
+        pointer-events: none;
+    }
+
+    .swipe-indicator.like {
+        right: 40px;
+        color: #10b981;
+        border-color: #10b981;
+        transform: rotate(20deg);
+    }
+
+    .swipe-indicator.pass {
+        left: 40px;
+        color: #ef4444;
+        border-color: #ef4444;
+        transform: rotate(-20deg);
+    }
+
+    .swipe-actions {
+        position: absolute;
+        bottom: 26px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 22px;
+        z-index: 6;
+    }
+
+    .swipe-btn {
+        width: 62px;
+        height: 62px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    .swipe-btn:active {
+        transform: scale(0.9);
+    }
+
+    .swipe-btn.pass {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        box-shadow: 0 8px 24px rgba(239, 68, 68, 0.5);
+    }
+
+    .swipe-btn.like {
+        background: linear-gradient(135deg, #10b981, #059669);
+        box-shadow: 0 8px 24px rgba(16, 185, 129, 0.5);
+    }
+
+    /* iOS SETTINGS */
+    .ios-group {
+        background: rgba(28, 33, 48, 0.75);
+        border-radius: 18px;
+        overflow: hidden;
+        margin-bottom: 16px;
+        border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .ios-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        font-size: 15px;
+    }
+
+    .ios-row:last-child {
+        border-bottom: none;
+    }
+
+    .ios-switch {
+        position: relative;
+        width: 50px;
+        height: 30px;
+        border-radius: 100px;
+        background: rgba(120,120,128,0.4);
+        transition: background 0.25s ease;
+        cursor: pointer;
+        border: none;
+        padding: 0;
+    }
+
+    .ios-switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #fff;
+        transition: transform 0.25s ease;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    }
+
+    .ios-switch.on {
+        background: #10b981;
+    }
+
+    .ios-switch.on::after {
+        transform: translateX(20px);
+    }
+
+    /* TOAST */
+    .toast {
+        position: fixed;
+        top: calc(24px + env(safe-area-inset-top, 0px));
+        left: 50%;
+        transform: translateX(-50%) translateY(-30px);
+        z-index: 500;
+        padding: 12px 20px;
+        background: rgba(12, 16, 26, 0.95);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(6, 182, 212, 0.35);
+        border-radius: 14px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #fff;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: 90vw;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        white-space: nowrap;
+    }
+
+    .toast.active {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    .toast i {
+        color: #06b6d4;
+        font-size: 16px;
+    }
+
+    /* PIN MODAL */
+    .pin-input {
+        width: 100%;
+        padding: 16px;
+        background: rgba(30, 36, 52, 0.9);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 14px;
+        color: #fff;
+        font-size: 22px;
+        text-align: center;
+        letter-spacing: 8px;
+        font-weight: 700;
+        font-family: 'Inter', sans-serif;
+        outline: none;
+        transition: border-color 0.2s ease;
+    }
+
+    .pin-input:focus {
+        border-color: #6366f1;
+    }
+
+    /* PROFILE ROW */
+    .person-row {
+        display: flex;
+        gap: 14px;
+        padding: 14px;
+        background: rgba(28, 33, 48, 0.6);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 16px;
+        margin-bottom: 10px;
+        align-items: flex-start;
+    }
+
+    .person-avatar {
+        width: 54px;
+        height: 54px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 22px;
+        flex-shrink: 0;
+        overflow: hidden;
+    }
+
+    .tag-pill {
+        display: inline-block;
+        padding: 3px 9px;
+        background: rgba(99, 102, 241, 0.18);
+        border: 1px solid rgba(99, 102, 241, 0.35);
+        border-radius: 100px;
+        font-size: 10px;
+        font-weight: 700;
+        color: #c7d2fe;
+        margin: 2px 3px 2px 0;
+    }
+
+    .tag-pill.cyan {
+        background: rgba(6, 182, 212, 0.18);
+        border-color: rgba(6, 182, 212, 0.35);
+        color: #a5f3fc;
+    }
+
+    .tag-pill.emerald {
+        background: rgba(16, 185, 129, 0.18);
+        border-color: rgba(16, 185, 129, 0.35);
+        color: #a7f3d0;
+    }
+
+    /* HEADER */
+    .top-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        pointer-events: none;
+    }
+
+    .top-bar > * {
+        pointer-events: auto;
+    }
+
+    .logo-block {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        background: rgba(12, 16, 26, 0.85);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 16px;
+    }
+
+    .logo-block .icon {
+        width: 30px;
+        height: 30px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        box-shadow: 0 0 16px rgba(99,102,241,0.55);
+    }
+
+    .logo-block .text {
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: -0.3px;
+        background: linear-gradient(135deg, #fff, #a5f3fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .user-chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 5px 5px 12px;
+        background: rgba(12, 16, 26, 0.85);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 100px;
+        max-width: 45vw;
+    }
+
+    .user-chip .name {
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .user-chip .ava {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #6366f1, #ec4899);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 800;
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+
+    .user-chip .ava img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    /* FLOATING BTN */
+    .fab-spot {
+        position: absolute;
+        bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+        right: 18px;
+        z-index: 60;
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        border: none;
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        color: #fff;
+        font-size: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 10px 30px rgba(99,102,241,0.6);
+        transition: transform 0.18s ease;
+    }
+
+    .fab-spot:active {
+        transform: scale(0.92);
+    }
+
+    .fab-locate {
+        position: absolute;
+        bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+        right: 88px;
+        z-index: 60;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(12, 16, 26, 0.9);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255,255,255,0.1);
+        color: #fff;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        transition: transform 0.18s ease;
+    }
+
+    .fab-locate:active {
+        transform: scale(0.92);
+    }
+
+    /* TAG SELECTOR */
+    .tag-choice {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 14px;
+        background: rgba(30, 36, 52, 0.85);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 100px;
+        font-size: 12px;
+        font-weight: 600;
+        color: rgba(255,255,255,0.65);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin: 3px 3px 3px 0;
+    }
+
+    .tag-choice.on {
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        border-color: transparent;
+        color: #fff;
+    }
+
+    .tag-choice:active {
+        transform: scale(0.95);
+    }
+
+    .text-field {
+        width: 100%;
+        padding: 14px 16px;
+        background: rgba(30, 36, 52, 0.85);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 14px;
+        color: #fff;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        outline: none;
+        resize: none;
+        transition: border-color 0.2s ease;
+    }
+
+    .text-field:focus {
+        border-color: #6366f1;
+    }
+
+    .text-field::placeholder {
+        color: rgba(255,255,255,0.35);
+    }
+
+    .btn-primary {
+        width: 100%;
+        padding: 15px;
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        border: none;
+        border-radius: 15px;
+        color: #fff;
+        font-family: 'Inter', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 8px 24px rgba(99,102,241,0.45);
+    }
+
+    .btn-primary:active {
+        transform: scale(0.98);
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    .section-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: rgba(255,255,255,0.4);
+        margin: 4px 0 10px 6px;
+    }
+
+    /* LOADING */
+    .loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: #090d16;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+
+    .loader.hidden {
+        opacity: 0;
+        visibility: hidden;
+    }
+
+    .loader-logo {
+        width: 72px;
+        height: 72px;
+        border-radius: 22px;
+        background: linear-gradient(135deg, #6366f1, #06b6d4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        animation: load-pulse 1.5s ease-in-out infinite;
+        box-shadow: 0 0 50px rgba(99,102,241,0.6);
+    }
+
+    @keyframes load-pulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 50px rgba(99,102,241,0.6); }
+        50% { transform: scale(1.08); box-shadow: 0 0 70px rgba(6,182,212,0.85); }
+    }
+
+    .loader-text {
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 6px;
+        color: rgba(255,255,255,0.55);
+    }
+
+    /* Scrollable rows */
+    .scroll-y {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .scroll-y::-webkit-scrollbar { display: none; }
+    .scroll-y { scrollbar-width: none; }
+
+    /* Hidden utility */
+    .hidden-el { display: none !important; }
+</style>
 </head>
 <body>
 
+<!-- LOADER -->
+<div class="loader" id="loader">
+    <div class="loader-logo"><i class="fas fa-location-crosshairs" style="color:#fff;"></i></div>
+    <div class="loader-text">SPOTLIGHT</div>
+</div>
+
+<!-- APP -->
 <div id="app">
-  <!-- Вкладка 1: Карта -->
-  <div id="tab-map" class="tab-content active">
-    <div id="map"></div>
-  </div>
 
-  <!-- Вкладка 2: Свайпы -->
-  <div id="tab-swipe" class="tab-content">
-    <div class="swipe-container">
-      <div class="card-deck" id="cardDeck"></div>
-      <div class="swipe-actions">
-        <button class="btn-action btn-dislike" onclick="triggerSwipe(false)"><i class="fas fa-times"></i></button>
-        <button class="btn-action btn-like" onclick="triggerSwipe(true)"><i class="fas fa-heart"></i></button>
-      </div>
+    <!-- TOP BAR -->
+    <div class="top-bar">
+        <div class="logo-block">
+            <div class="icon"><i class="fas fa-location-crosshairs" style="color:#fff;"></i></div>
+            <div class="text">Spotlight</div>
+        </div>
+        <div class="user-chip" id="userChip">
+            <div class="name" id="userChipName">Гость</div>
+            <div class="ava" id="userChipAva"><span>Г</span></div>
+        </div>
     </div>
-  </div>
 
-  <!-- Вкладка 3: Мой Профиль -->
-  <div id="tab-profile" class="tab-content">
-    <div class="form-container">
-      <div class="form-title">Редактировать Анкету</div>
-      <div class="form-group">
-        <label>Ваше Имя</label>
-        <input type="text" id="profName" class="form-control" placeholder="Например: Саша">
-      </div>
-      <div class="form-group">
-        <label>Возраст</label>
-        <input type="number" id="profAge" class="form-control" placeholder="20">
-      </div>
-      <div class="form-group">
-        <label>Вуз / Занятие</label>
-        <input type="text" id="profTag" class="form-control" placeholder="МГУ им. Ломоносова">
-      </div>
-      <div class="form-group">
-        <label>О себе</label>
-        <textarea id="profBio" class="form-control" rows="3" placeholder="Учусь на ВМК, вечер проводим в парке..."></textarea>
-      </div>
-      <div class="form-group">
-        <label>Ссылка на фото профиля (URL)</label>
-        <input type="text" id="profPhoto" class="form-control" placeholder="https://images.unsplash.com/...">
-      </div>
-      <button class="btn-primary" onclick="saveUserProfile()">Опубликовать анкету</button>
+    <!-- ================ SCREEN: MAP ================ -->
+    <section class="screen active" id="screen-map">
+        <div id="map-container">
+            <div id="map"></div>
+        </div>
+
+        <button class="fab-locate" id="fabLocate" title="Моё местоположение">
+            <i class="fas fa-crosshairs"></i>
+        </button>
+
+        <button class="fab-spot" id="fabSpot" title="Поставить метку">
+            <i class="fas fa-plus"></i>
+        </button>
+    </section>
+
+    <!-- ================ SCREEN: DATING ================ -->
+    <section class="screen" id="screen-dating">
+        <div class="card-stack" id="cardStack"></div>
+    </section>
+
+    <!-- ================ SCREEN: PROFILE ================ -->
+    <section class="screen" id="screen-profile">
+        <div class="scroll-y" style="flex:1; padding: 90px 20px 30px;">
+            <div class="flex flex-col items-center mb-6">
+                <div id="profileBigAva" style="width:110px; height:110px; border-radius:36px; background: linear-gradient(135deg, #6366f1, #06b6d4); display:flex; align-items:center; justify-content:center; font-size:42px; font-weight:900; box-shadow: 0 20px 50px rgba(99,102,241,0.5); overflow:hidden;">
+                    <span>Г</span>
+                </div>
+                <div id="profileBigName" class="mt-4 text-2xl font-extrabold">Гость</div>
+                <div id="profileBigUsername" class="text-sm text-white/40 mt-1">@username</div>
+                <div class="mt-3 flex gap-2">
+                    <span class="tag-pill">🗺️ На карте</span>
+                    <span class="tag-pill cyan">💬 Общение</span>
+                    <span class="tag-pill emerald">🟢 Онлайн</span>
+                </div>
+            </div>
+
+            <div class="section-label">Статистика</div>
+            <div class="ios-group">
+                <div class="ios-row">
+                    <span><i class="fas fa-heart text-pink-400 mr-2"></i> Лайков отправлено</span>
+                    <span class="font-bold text-white/80" id="statLikes">12</span>
+                </div>
+                <div class="ios-row">
+                    <span><i class="fas fa-location-dot text-cyan-400 mr-2"></i> Меток создано</span>
+                    <span class="font-bold text-white/80" id="statSpots">3</span>
+                </div>
+                <div class="ios-row">
+                    <span><i class="fas fa-users text-indigo-400 mr-2"></i> Взаимных мэтчей</span>
+                    <span class="font-bold text-white/80" id="statMatches">1</span>
+                </div>
+            </div>
+
+            <div class="section-label">О себе</div>
+            <div class="ios-group">
+                <div class="ios-row">
+                    <span class="text-white/70 text-sm">Редактировать профиль</span>
+                    <i class="fas fa-chevron-right text-white/30 text-xs"></i>
+                </div>
+                <div class="ios-row">
+                    <span class="text-white/70 text-sm">Поделиться профилем</span>
+                    <i class="fas fa-chevron-right text-white/30 text-xs"></i>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================ SCREEN: SETTINGS ================ -->
+    <section class="screen" id="screen-settings">
+        <div class="scroll-y" style="flex:1; padding: 90px 20px 30px;">
+            <div class="section-label">Приватность</div>
+            <div class="ios-group">
+                <div class="ios-row">
+                    <div>
+                        <div class="font-semibold">Режим Призрака</div>
+                        <div class="text-xs text-white/40 mt-0.5">Скрыть точку на карте</div>
+                    </div>
+                    <button class="ios-switch" id="ghostSwitch"></button>
+                </div>
+                <div class="ios-row">
+                    <div>
+                        <div class="font-semibold">Точная геолокация</div>
+                        <div class="text-xs text-white/40 mt-0.5">Авто-отключение вне зоны</div>
+                    </div>
+                    <button class="ios-switch on" id="geoSwitch"></button>
+                </div>
+            </div>
+
+            <div class="section-label">Отображение</div>
+            <div class="ios-group">
+                <div class="ios-row">
+                    <div>
+                        <div class="font-semibold">3D здания</div>
+                        <div class="text-xs text-white/40 mt-0.5">Объёмные дома на карте</div>
+                    </div>
+                    <button class="ios-switch on" id="buildingsSwitch"></button>
+                </div>
+                <div class="ios-row">
+                    <div>
+                        <div class="font-semibold">Пульсация маркеров</div>
+                        <div class="text-xs text-white/40 mt-0.5">Анимация неоновых кругов</div>
+                    </div>
+                    <button class="ios-switch on" id="pulseSwitch"></button>
+                </div>
+            </div>
+
+            <div class="section-label">Уведомления</div>
+            <div class="ios-group">
+                <div class="ios-row">
+                    <div>
+                        <div class="font-semibold">Новые люди рядом</div>
+                        <div class="text-xs text-white/40 mt-0.5">Пуш-уведомления</div>
+                    </div>
+                    <button class="ios-switch on" id="notifSwitch"></button>
+                </div>
+            </div>
+
+            <div class="section-label">Администрирование</div>
+            <div class="ios-group">
+                <div class="ios-row" id="adminRow">
+                    <span class="text-white/70"><i class="fas fa-lock text-amber-400 mr-2"></i> Панель управления локациями</span>
+                    <i class="fas fa-chevron-right text-white/30 text-xs"></i>
+                </div>
+            </div>
+
+            <div class="text-center mt-8 text-xs text-white/25">
+                Spotlight v1.0 · Made for Telegram
+            </div>
+        </div>
+    </section>
+
+    <!-- NAV BAR -->
+    <nav class="nav-bar">
+        <button class="nav-item active" data-screen="map">
+            <i class="fas fa-map-location-dot"></i>
+            <span>Карта</span>
+        </button>
+        <button class="nav-item" data-screen="dating">
+            <i class="fas fa-fire"></i>
+            <span>Знакомства</span>
+        </button>
+        <button class="nav-item" data-screen="profile">
+            <i class="fas fa-user"></i>
+            <span>Профиль</span>
+        </button>
+        <button class="nav-item" data-screen="settings">
+            <i class="fas fa-gear"></i>
+            <span>Настройки</span>
+        </button>
+    </nav>
+
+</div>
+
+<!-- BOTTOM SHEET OVERLAY -->
+<div class="sheet-overlay" id="sheetOverlay"></div>
+
+<!-- BOTTOM SHEET (dynamic content) -->
+<div class="bottom-sheet" id="bottomSheet">
+    <div class="sheet-handle-area" id="sheetHandleArea">
+        <div class="sheet-handle"></div>
     </div>
-  </div>
+    <div class="sheet-content" id="sheetContent"></div>
+</div>
 
-  <!-- Вкладка 4: Настройки & Админка -->
-  <div id="tab-settings" class="tab-content">
-    <div class="form-container">
-      <div class="form-title">Настройки</div>
-      <div class="form-group">
-        <label>Радиус поиска анкет (км)</label>
-        <input type="number" class="form-control" value="10">
-      </div>
-      
-      <hr style="border-color: rgba(255,255,255,0.1); margin: 25px 0;">
-      
-      <div class="form-title" style="color: #ef4444; font-size: 18px;">Администрирование</div>
-      <div class="form-group">
-        <label>PIN-код Администратора</label>
-        <input type="password" id="adminPin" class="form-control" placeholder="Введите код">
-      </div>
-      <button class="btn-primary" style="background: #334155; box-shadow: none;" onclick="loginAdmin()">Войти в панель</button>
-      
-      <div id="adminPanel" style="display: none; margin-top: 25px; background: #1e293b; padding: 15px; border-radius: 14px;">
-        <h4 style="color: #ef4444; margin-bottom: 12px;">Активные анкеты системы</h4>
-        <div id="adminUsersList"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Нижняя Панель Навигации -->
-  <nav class="nav-bar">
-    <div class="nav-item active" onclick="switchTab('map', this)"><i class="fas fa-map-marked-alt"></i><span>Карта</span></div>
-    <div class="nav-item" onclick="switchTab('swipe', this)"><i class="fas fa-fire"></i><span>Анкеты</span></div>
-    <div class="nav-item" onclick="switchTab('profile', this)"><i class="fas fa-user"></i><span>Профиль</span></div>
-    <div class="nav-item" onclick="switchTab('settings', this)"><i class="fas fa-cog"></i><span>Настройки</span></div>
-  </nav>
+<!-- TOAST -->
+<div class="toast" id="toast">
+    <i class="fas fa-circle-check"></i>
+    <span id="toastText">Готово</span>
 </div>
 
 <script>
-  // Инициализация Telegram WebApp
-  const tg = window.Telegram?.WebApp;
-  if (tg) { tg.ready(); tg.expand(); }
+/* =====================================================
+   SPOTLIGHT — TELEGRAM MINI APP
+   Full single-file logic
+   ===================================================== */
 
-  // 1. Инициализация карты CartoDB Voyager
-  const map = L.map('map', { zoomControl: false }).setView([55.7558, 37.6173], 12);
-  
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 20,
-    subdomains: 'abcd',
-    attribution: '© CARTO'
-  }).addTo(map);
+/* ---------- TELEGRAM INIT ---------- */
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg) {
+    tg.ready();
+    tg.expand();
+    try {
+        tg.setHeaderColor('#090d16');
+        tg.setBackgroundColor('#090d16');
+    } catch (e) {}
+    if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+}
 
-  // Геолокация
-  let userLocation = [55.7558, 37.6173];
-  map.locate({setView: true, maxZoom: 14});
-  
-  let userMarker;
-  map.on('locationfound', function(e) {
-    userLocation = [e.latlng.lat, e.latlng.lng];
-    if (!userMarker) {
-      userMarker = L.circleMarker(e.latlng, { radius: 10, fillColor: '#38bdf8', color: '#fff', weight: 3, fillOpacity: 1 }).addTo(map);
-      userMarker.bindPopup("<b>Вы здесь</b>");
+/* ---------- USER DATA ---------- */
+const tgUser = tg && tg.initDataUnsafe ? tg.initDataUnsafe.user : null;
+const CURRENT_USER = {
+    id: tgUser ? tgUser.id : 0,
+    name: tgUser ? (tgUser.first_name || 'Гость') : 'Гость',
+    username: tgUser && tgUser.username ? '@' + tgUser.username : '@guest',
+    photo: tgUser && tgUser.photo_url ? tgUser.photo_url : null
+};
+
+/* ---------- RENDER USER INFO ---------- */
+(function renderUserInfo() {
+    const chipName = document.getElementById('userChipName');
+    const chipAva = document.getElementById('userChipAva');
+    const bigAva = document.getElementById('profileBigAva');
+    const bigName = document.getElementById('profileBigName');
+    const bigUser = document.getElementById('profileBigUsername');
+
+    const initials = CURRENT_USER.name.charAt(0).toUpperCase();
+
+    chipName.textContent = CURRENT_USER.name;
+    bigName.textContent = CURRENT_USER.name;
+    bigUser.textContent = CURRENT_USER.username;
+
+    if (CURRENT_USER.photo) {
+        chipAva.innerHTML = `<img src="${CURRENT_USER.photo}" alt="">`;
+        bigAva.innerHTML = `<img src="${CURRENT_USER.photo}" style="width:100%;height:100%;object-fit:cover;">`;
     } else {
-      userMarker.setLatLng(e.latlng);
+        chipAva.innerHTML = `<span>${initials}</span>`;
+        bigAva.innerHTML = `<span>${initials}</span>`;
     }
-  });
+})();
 
-  // База анкет
-  let profiles = JSON.parse(localStorage.getItem('spotlight_profiles')) || [
-    { id: 1, name: "Катя", age: 20, tag: "ВШЭ", bio: "Ищу компанию для прогулок по Покровке и кофе ☕", photo: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500", lat: 55.7580, lng: 37.6400 },
-    { id: 2, name: "Артем", age: 22, bio: "Пишу код на Python, катаюсь на скейте в Парке Горького 🛹", tag: "МГТУ Баумана", photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500", lat: 55.7660, lng: 37.6830 },
-    { id: 3, name: "Даша", age: 19, bio: "Учусь на журфаке МГУ, люблю выставки в ГЭС-2 🎨", tag: "МГУ", photo: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500", lat: 55.7480, lng: 37.6110 }
-  ];
+/* ---------- HAPTIC HELPERS ---------- */
+function haptic(type) {
+    if (!tg || !tg.HapticFeedback) return;
+    try {
+        if (type === 'light') tg.HapticFeedback.impactOccurred('light');
+        else if (type === 'medium') tg.HapticFeedback.impactOccurred('medium');
+        else if (type === 'heavy') tg.HapticFeedback.impactOccurred('heavy');
+        else if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+        else if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+        else if (type === 'select') tg.HapticFeedback.selectionChanged();
+    } catch (e) {}
+}
 
-  let mapMarkers = [];
-  function updateMapMarkers() {
-    mapMarkers.forEach(m => map.removeLayer(m));
-    mapMarkers = [];
-    profiles.forEach(p => {
-      const m = L.marker([p.lat, p.lng]).addTo(map);
-      m.bindPopup(`
-        <div class="map-popup-card">
-          <img src="${p.photo}">
-          <h4>${p.name}, ${p.age}</h4>
-          <p>${p.tag || ''}</p>
-        </div>
-      `);
-      mapMarkers.push(m);
+/* ---------- TOAST ---------- */
+const toastEl = document.getElementById('toast');
+const toastText = document.getElementById('toastText');
+let toastTimer = null;
+function showToast(msg, icon = 'fa-circle-check') {
+    toastText.textContent = msg;
+    toastEl.querySelector('i').className = 'fas ' + icon;
+    toastEl.classList.add('active');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('active'), 2600);
+}
+
+/* =====================================================
+   MAP MODULE (MapLibre GL)
+   ===================================================== */
+let map;
+const markers = [];
+let showBuildings = true;
+let showPulse = true;
+let ghostMode = false;
+
+/* ---------- TEST USERS ---------- */
+const TEST_USERS = [
+    {
+        id: 1,
+        name: 'Лера',
+        age: 19,
+        username: '@lera_k',
+        color: 'ring-indigo',
+        lat: 55.7558,
+        lng: 37.6173,
+        tags: ['♀️ Ищу М', '☕ Кофе', 'Учеба'],
+        status: 'Сделала уроки, пью раф, ищу компанию на прогулку',
+        photo: 'https://i.pravatar.cc/300?img=47'
+    },
+    {
+        id: 2,
+        name: 'Никита',
+        age: 21,
+        username: '@nikita_sk',
+        color: 'ring-cyan',
+        lat: 55.7590,
+        lng: 37.6300,
+        tags: ['💬 Компания'],
+        status: 'Катаюсь на скейте, кто со мной?',
+        photo: 'https://i.pravatar.cc/300?img=12'
+    },
+    {
+        id: 3,
+        name: 'Тусовка 5+',
+        age: 20,
+        username: '@chill_crew',
+        color: 'ring-emerald',
+        lat: 55.7640,
+        lng: 37.6380,
+        tags: ['👥 Большая группа', '📍 Не-фудкорт'],
+        status: 'Сидим на лавочках, играем на гитаре',
+        photo: 'https://i.pravatar.cc/300?img=68'
+    },
+    {
+        id: 4,
+        name: 'Аня',
+        age: 18,
+        username: '@anya_m',
+        color: 'ring-pink',
+        lat: 55.7300,
+        lng: 37.6000,
+        tags: ['♀️ Ищу Ж', '☕ Кофе'],
+        status: 'Гуляю по парку, хочу найти подругу',
+        photo: 'https://i.pravatar.cc/300?img=45'
+    }
+];
+
+/* ---------- INIT MAP ---------- */
+function initMap() {
+    map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+        center: [37.6173, 55.7558],
+        zoom: 15,
+        pitch: 50,
+        bearing: -20,
+        antialias: true,
+        attributionControl: false
     });
-  }
-  updateMapMarkers();
 
-  // 2. Механика Свайпов
-  let currentCardIndex = 0;
-  function renderCardDeck() {
-    const deck = document.getElementById('cardDeck');
-    deck.innerHTML = '';
-    
-    if (currentCardIndex >= profiles.length) {
-      deck.innerHTML = `<div style="text-align:center; padding-top:40%; color:var(--text-muted); font-weight:600;">Анкеты поблизости закончились!<br><br>Попробуйте зайти позже.</div>`;
-      return;
-    }
+    map.on('load', () => {
+        /* 3D BUILDINGS LAYER */
+        if (!map.getLayer('3d-buildings')) {
+            const labelLayer = map.getStyle().layers.find(l => l.type === 'symbol' && l.layout && l.layout['text-field']);
+            map.addLayer({
+                'id': '3d-buildings',
+                'source': 'carto',
+                'source-layer': 'building',
+                'filter': ['==', 'extrude', 'true'],
+                'type': 'fill-extrusion',
+                'minzoom': 15,
+                'paint': {
+                    'fill-extrusion-color': [
+                        'interpolate', ['linear'], ['get', 'height'],
+                        0, '#1a1f2e',
+                        50, '#252b40',
+                        100, '#2d3450'
+                    ],
+                    'fill-extrusion-height': [
+                        'interpolate', ['linear'], ['zoom'],
+                        15, 0,
+                        15.05, ['get', 'height']
+                    ],
+                    'fill-extrusion-base': [
+                        'interpolate', ['linear'], ['zoom'],
+                        15, 0,
+                        15.05, ['get', 'min_height']
+                    ],
+                    'fill-extrusion-opacity': 0.85
+                }
+            }, labelLayer ? labelLayer.id : undefined);
+        }
 
-    const p = profiles[currentCardIndex];
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.id = 'activeCard';
-    card.innerHTML = `
-      <img class="card-img" src="${p.photo}">
-      <div class="card-gradient"></div>
-      <div class="card-info">
-        <div class="card-name">${p.name}, ${p.age} <span class="card-badge">${p.tag || 'Москва'}</span></div>
-        <div class="card-bio">${p.bio}</div>
-      </div>
+        addAllMarkers();
+    });
+
+    map.on('moveend', () => {
+        /* Update pitch to keep 3D feel */
+    });
+}
+
+/* ---------- MARKER HTML ---------- */
+function createMarkerElement(user) {
+    const wrap = document.createElement('div');
+    wrap.className = 'user-marker ' + user.color;
+    wrap.dataset.userId = user.id;
+
+    const imgHtml = user.photo
+        ? `<img src="${user.photo}" alt="">`
+        : `<div class="initial">${user.name.charAt(0).toUpperCase()}</div>`;
+
+    wrap.innerHTML = `
+        <div class="user-marker-inner">${imgHtml}</div>
+        <div class="user-marker-badge"></div>
+        <div class="user-marker-label">${user.name}, ${user.age}</div>
     `;
-    deck.appendChild(card);
-    setupDrag(card);
-  }
 
-  function triggerSwipe(isLike) {
-    const card = document.getElementById('activeCard');
-    if (!card) return;
-    card.style.transition = 'transform 0.4s ease, opacity 0.4s ease';
-    card.style.transform = `translate(${isLike ? 500 : -500}px, 0px) rotate(${isLike ? 30 : -30}deg)`;
-    card.style.opacity = '0';
-    setTimeout(() => {
-      currentCardIndex++;
-      renderCardDeck();
-    }, 300);
-  }
+    wrap.addEventListener('click', (e) => {
+        e.stopPropagation();
+        haptic('medium');
+        openUserSheet(user);
+    });
 
-  function setupDrag(el) {
-    let startX = 0, currentX = 0;
-    const onStart = (e) => { startX = e.touches ? e.touches[0].clientX : e.clientX; };
-    const onMove = (e) => {
-      if (!startX) return;
-      currentX = (e.touches ? e.touches[0].clientX : e.clientX) - startX;
-      el.style.transform = `translate(${currentX}px, 0px) rotate(${currentX * 0.08}deg)`;
+    return wrap;
+}
+
+/* ---------- ADD MARKERS ---------- */
+function addAllMarkers() {
+    removeAllMarkers();
+    if (ghostMode) return;
+
+    TEST_USERS.forEach(user => {
+        const el = createMarkerElement(user);
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+            .setLngLat([user.lng, user.lat])
+            .addTo(map);
+        markers.push({ marker, user });
+    });
+
+    if (!showPulse) {
+        document.querySelectorAll('.user-marker').forEach(m => m.style.setProperty('--pulse', 'none'));
+        const style = document.createElement('style');
+        style.id = 'no-pulse-style';
+        if (!document.getElementById('no-pulse-style')) {
+            style.textContent = '.user-marker::before { display: none !important; }';
+            document.head.appendChild(style);
+        }
+    }
+}
+
+function removeAllMarkers() {
+    while (markers.length) {
+        const m = markers.pop();
+        m.marker.remove();
+    }
+}
+
+/* =====================================================
+   BOTTOM SHEET MODULE
+   ===================================================== */
+const sheetOverlay = document.getElementById('sheetOverlay');
+const bottomSheet = document.getElementById('bottomSheet');
+const sheetContent = document.getElementById('sheetContent');
+const sheetHandleArea = document.getElementById('sheetHandleArea');
+
+let currentSheetOpen = false;
+
+function openSheet(html) {
+    sheetContent.innerHTML = html;
+    sheetContent.scrollTop = 0;
+    bottomSheet.classList.add('active');
+    sheetOverlay.classList.add('active');
+    currentSheetOpen = true;
+}
+
+function closeSheet() {
+    bottomSheet.classList.remove('active');
+    sheetOverlay.classList.remove('active');
+    currentSheetOpen = false;
+}
+
+sheetOverlay.addEventListener('click', closeSheet);
+
+/* ---------- DRAG TO CLOSE SHEET ---------- */
+(function enableSheetDrag() {
+    let startY = 0;
+    let currentY = 0;
+    let dragging = false;
+
+    const onStart = (clientY) => {
+        startY = clientY;
+        currentY = clientY;
+        dragging = true;
+        bottomSheet.style.transition = 'none';
+    };
+    const onMove = (clientY) => {
+        if (!dragging) return;
+        currentY = clientY;
+        const diff = Math.max(0, currentY - startY);
+        bottomSheet.style.transform = `translateY(${diff}px)`;
     };
     const onEnd = () => {
-      if (Math.abs(currentX) > 100) {
-        triggerSwipe(currentX > 0);
-      } else {
-        el.style.transform = 'translate(0, 0) rotate(0)';
-      }
-      startX = 0; currentX = 0;
+        if (!dragging) return;
+        dragging = false;
+        bottomSheet.style.transition = '';
+        bottomSheet.style.transform = '';
+        const diff = currentY - startY;
+        if (diff > 100) {
+            haptic('light');
+            closeSheet();
+        }
     };
-    el.addEventListener('touchstart', onStart);
-    el.addEventListener('touchmove', onMove);
-    el.addEventListener('touchend', onEnd);
-    el.addEventListener('mousedown', onStart);
-    window.addEventListener('mousemove', onMove);
+
+    sheetHandleArea.addEventListener('touchstart', e => onStart(e.touches[0].clientY), { passive: true });
+    sheetHandleArea.addEventListener('touchmove', e => onMove(e.touches[0].clientY), { passive: true });
+    sheetHandleArea.addEventListener('touchend', onEnd);
+
+    sheetHandleArea.addEventListener('mousedown', e => onStart(e.clientY));
+    window.addEventListener('mousemove', e => { if (dragging) onMove(e.clientY); });
     window.addEventListener('mouseup', onEnd);
-  }
+})();
 
-  renderCardDeck();
+/* =====================================================
+   USER PROFILE SHEET
+   ===================================================== */
+function openUserSheet(user) {
+    const tagsHtml = user.tags.map(t => {
+        let cls = 'tag-pill';
+        if (t.includes('Кофе') || t.includes('Ищу Ж')) cls += ' cyan';
+        if (t.includes('Большая группа') || t.includes('Не-фудкорт')) cls += ' emerald';
+        return `<span class="${cls}">${t}</span>`;
+    }).join('');
 
-  // 3. Сохранение профиля
-  function saveUserProfile() {
-    const name = document.getElementById('profName').value;
-    const age = document.getElementById('profAge').value;
-    const tag = document.getElementById('profTag').value;
-    const bio = document.getElementById('profBio').value;
-    const photo = document.getElementById('profPhoto').value;
+    const html = `
+        <div class="flex flex-col items-center text-center pb-4">
+            <div style="width:96px; height:96px; border-radius:28px; overflow:hidden; box-shadow: 0 16px 40px rgba(99,102,241,0.5); border: 2px solid rgba(255,255,255,0.15);">
+                <img src="${user.photo}" style="width:100%; height:100%; object-fit:cover;">
+            </div>
+            <div class="mt-4 text-2xl font-extrabold">${user.name} <span class="text-white/40 text-lg font-medium">${user.age}</span></div>
+            <div class="text-sm text-white/45 mt-1">${user.username}</div>
+            <div class="flex flex-wrap justify-center gap-1 mt-3">${tagsHtml}</div>
+        </div>
 
-    if (!name || !age) return alert('Укажите имя и возраст!');
+        <div style="background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.25); border-radius: 16px; padding: 16px; margin-bottom: 18px;">
+            <div class="text-xs font-bold uppercase tracking-wider text-indigo-300 mb-2">
+                <i class="fas fa-quote-left mr-1"></i> Статус
+            </div>
+            <div style="font-size:14px; line-height:1.5; color: rgba(255,255,255,0.85);">"${user.status}"</div>
+        </div>
 
-    const newProfile = {
-      id: Date.now(),
-      name: name,
-      age: parseInt(age),
-      tag: tag || 'Студент',
-      bio: bio || 'Описание отсутствует',
-      photo: photo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=500',
-      lat: userLocation[0] + (Math.random() - 0.5) * 0.01,
-      lng: userLocation[1] + (Math.random() - 0.5) * 0.01
+        <div class="ios-group">
+            <div class="ios-row">
+                <span class="text-white/60 text-sm"><i class="fas fa-location-dot text-cyan-400 mr-2"></i>Находится рядом</span>
+                <span class="font-bold text-white/80 text-sm">~250 м</span>
+            </div>
+            <div class="ios-row">
+                <span class="text-white/60 text-sm"><i class="fas fa-clock text-indigo-400 mr-2"></i>В сети</span>
+                <span class="font-bold text-emerald-400 text-sm">Только что</span>
+            </div>
+            <div class="ios-row">
+                <span class="text-white/60 text-sm"><i class="fas fa-shield-halved text-amber-400 mr-2"></i>Гео-защита</span>
+                <span class="font-bold text-white/80 text-sm">Включена</span>
+            </div>
+        </div>
+
+        <div class="flex gap-3 mt-4">
+            <button class="btn-primary" style="flex:1; background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 8px 24px rgba(239,68,68,0.4);" id="sheetPass">
+                <i class="fas fa-times"></i> Пропустить
+            </button>
+            <button class="btn-primary" style="flex:1; background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 8px 24px rgba(16,185,129,0.4);" id="sheetLike">
+                <i class="fas fa-heart"></i> Лайк
+            </button>
+        </div>
+    `;
+
+    openSheet(html);
+
+    document.getElementById('sheetPass').addEventListener('click', () => {
+        haptic('light');
+        showToast('Пропущено', 'fa-circle-xmark');
+        closeSheet();
+    });
+    document.getElementById('sheetLike').addEventListener('click', () => {
+        haptic('success');
+        showToast('Лайк отправлен!', 'fa-heart');
+        closeSheet();
+    });
+}
+
+/* =====================================================
+   SPOT CREATION SHEET
+   ===================================================== */
+const SPOT_TAGS = ['♀️ Ищу М', '♂️ Ищу Ж', '💬 Компания', '📚 Учеба', '☕ Кофе'];
+
+let selectedSpotTags = new Set();
+
+function openSpotSheet() {
+    selectedSpotTags.clear();
+
+    const tagsHtml = SPOT_TAGS.map(t => 
+        `<button class="tag-choice" data-tag="${t}">${t}</button>`
+    ).join('');
+
+    const html = `
+        <div class="text-center mb-4">
+            <div style="width:64px; height:64px; border-radius:20px; background: linear-gradient(135deg, #6366f1, #06b6d4); margin: 0 auto; display:flex; align-items:center; justify-content:center; font-size:26px; box-shadow: 0 12px 32px rgba(99,102,241,0.5);">
+                <i class="fas fa-location-dot" style="color:#fff;"></i>
+            </div>
+            <div class="text-xl font-extrabold mt-3">Поставить метку</div>
+            <div class="text-xs text-white/45 mt-1">Расскажи, где ты и чем занят</div>
+        </div>
+
+        <div class="section-label">Выбери теги</div>
+        <div class="mb-4" id="spotTagsWrap">${tagsHtml}</div>
+
+        <div class="section-label">Статус</div>
+        <textarea class="text-field mb-4" id="spotStatus" rows="3" placeholder="Например: Сижу в кофейне, пью раф, ищу компанию..."></textarea>
+
+        <button class="btn-primary" id="spotSubmit" disabled>
+            <i class="fas fa-satellite-dish mr-2"></i> Опубликовать метку
+        </button>
+
+        <div class="text-xs text-white/30 text-center mt-3">
+            🛡️ Точный адрес не передаётся. Радиус видимости: ~250 м
+        </div>
+    `;
+
+    openSheet(html);
+
+    document.querySelectorAll('#spotTagsWrap .tag-choice').forEach(btn => {
+        btn.addEventListener('click', () => {
+            haptic('select');
+            const tag = btn.dataset.tag;
+            if (selectedSpotTags.has(tag)) {
+                selectedSpotTags.delete(tag);
+                btn.classList.remove('on');
+            } else {
+                selectedSpotTags.add(tag);
+                btn.classList.add('on');
+            }
+            validateSpot();
+        });
+    });
+
+    const statusField = document.getElementById('spotStatus');
+    statusField.addEventListener('input', validateSpot);
+
+    document.getElementById('spotSubmit').addEventListener('click', () => {
+        if (selectedSpotTags.size === 0 || !statusField.value.trim()) return;
+        haptic('success');
+        showToast('Метка опубликована! Тебя увидят рядом', 'fa-satellite-dish');
+        closeSheet();
+    });
+
+    function validateSpot() {
+        const btn = document.getElementById('spotSubmit');
+        btn.disabled = !(selectedSpotTags.size > 0 && statusField.value.trim().length > 0);
+    }
+}
+
+/* =====================================================
+   SETTINGS SHEET (ADMIN PIN)
+   ===================================================== */
+function openAdminSheet() {
+    const html = `
+        <div class="text-center mb-4">
+            <div style="width:64px; height:64px; border-radius:20px; background: linear-gradient(135deg, #fbbf24, #f59e0b); margin: 0 auto; display:flex; align-items:center; justify-content:center; font-size:26px; box-shadow: 0 12px 32px rgba(251,191,36,0.4);">
+                <i class="fas fa-lock" style="color:#fff;"></i>
+            </div>
+            <div class="text-xl font-extrabold mt-3">Панель управления</div>
+            <div class="text-xs text-white/45 mt-1">Введите PIN-код для доступа</div>
+        </div>
+
+        <input type="password" class="pin-input mb-4" id="pinField" maxlength="4" placeholder="____" inputmode="numeric">
+
+        <button class="btn-primary" id="pinSubmit" style="background: linear-gradient(135deg, #fbbf24, #f59e0b); box-shadow: 0 8px 24px rgba(251,191,36,0.4);">
+            <i class="fas fa-unlock mr-2"></i> Войти
+        </button>
+    `;
+
+    openSheet(html);
+
+    const pinField = document.getElementById('pinField');
+    setTimeout(() => pinField.focus(), 300);
+
+    document.getElementById('pinSubmit').addEventListener('click', () => {
+        const val = pinField.value.trim();
+        if (val === '1337') {
+            haptic('success');
+            openAdminPanel();
+        } else {
+            haptic('error');
+            showToast('Неверный PIN-код', 'fa-circle-xmark');
+            pinField.value = '';
+        }
+    });
+
+    pinField.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('pinSubmit').click();
+    });
+}
+
+function openAdminPanel() {
+    const rows = TEST_USERS.map(u => `
+        <div class="person-row">
+            <div class="person-avatar" style="background: linear-gradient(135deg, #6366f1, #06b6d4);">
+                <img src="${u.photo}" style="width:100%; height:100%; object-fit:cover;">
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-bold text-sm">${u.name}, ${u.age}</div>
+                <div class="text-xs text-white/40 mt-0.5">${u.username}</div>
+                <div class="text-xs text-white/50 mt-1"><i class="fas fa-location-dot mr-1 text-cyan-400"></i>${u.lat.toFixed(4)}, ${u.lng.toFixed(4)}</div>
+            </div>
+            <button class="text-red-400 text-sm px-2" data-remove="${u.id}">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
+
+    const html = `
+        <div class="text-center mb-4">
+            <div style="width:64px; height:64px; border-radius:20px; background: linear-gradient(135deg, #10b981, #059669); margin: 0 auto; display:flex; align-items:center; justify-content:center; font-size:26px; box-shadow: 0 12px 32px rgba(16,185,129,0.4);">
+                <i class="fas fa-satellite-dish" style="color:#fff;"></i>
+            </div>
+            <div class="text-xl font-extrabold mt-3">Управление локациями</div>
+            <div class="text-xs text-white/45 mt-1">Активных пользователей: ${TEST_USERS.length}</div>
+        </div>
+
+        <div class="section-label">Активные метки</div>
+        ${rows}
+
+        <button class="btn-primary mt-4" id="adminRefresh" style="background: linear-gradient(135deg, #6366f1, #06b6d4);">
+            <i class="fas fa-rotate mr-2"></i> Обновить карту
+        </button>
+    `;
+
+    openSheet(html);
+
+    document.getElementById('adminRefresh').addEventListener('click', () => {
+        haptic('medium');
+        addAllMarkers();
+        showToast('Карта обновлена', 'fa-rotate');
+        closeSheet();
+    });
+
+    document.querySelectorAll('[data-remove]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = parseInt(btn.dataset.remove, 10);
+            const idx = TEST_USERS.findIndex(u => u.id === id);
+            if (idx > -1) {
+                TEST_USERS.splice(idx, 1);
+                haptic('medium');
+                addAllMarkers();
+                openAdminPanel();
+                showToast('Локация удалена', 'fa-trash');
+            }
+        });
+    });
+}
+
+/* =====================================================
+   NAVIGATION
+   ===================================================== */
+document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+        haptic('light');
+        const target = btn.dataset.screen;
+        document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        const screen = document.getElementById('screen-' + target);
+        if (screen) screen.classList.add('active');
+
+        if (target === 'map' && map) {
+            setTimeout(() => map.resize(), 250);
+        }
+        if (target === 'dating') {
+            renderSwipeCards();
+        }
+    });
+});
+
+/* =====================================================
+   FAB BUTTONS
+   ===================================================== */
+document.getElementById('fabSpot').addEventListener('click', () => {
+    haptic('medium');
+    openSpotSheet();
+});
+
+document.getElementById('fabLocate').addEventListener('click', () => {
+    haptic('light');
+    if (!map) return;
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                map.flyTo({
+                    center: [pos.coords.longitude, pos.coords.latitude],
+                    zoom: 16,
+                    pitch: 55,
+                    duration: 1200
+                });
+                showToast('Позиция обновлена', 'fa-crosshairs');
+            },
+            () => {
+                map.flyTo({ center: [37.6173, 55.7558], zoom: 15, duration: 900 });
+                showToast('Используем центр Москвы', 'fa-location-dot');
+            },
+            { enableHighAccuracy: true, timeout: 5000 }
+        );
+    } else {
+        showToast('Геолокация недоступна', 'fa-circle-xmark');
+    }
+});
+
+/* =====================================================
+   SWIPE CARDS (DATING)
+   ===================================================== */
+const cardStack = document.getElementById('cardStack');
+let activeCard = null;
+let currentCardIndex = 0;
+
+function renderSwipeCards() {
+    cardStack.innerHTML = '';
+
+    if (currentCardIndex >= TEST_USERS.length) {
+        cardStack.innerHTML = `
+            <div class="text-center px-6">
+                <div style="font-size:56px; margin-bottom:16px;">🎉</div>
+                <div class="text-xl font-extrabold mb-2">Анкеты закончились</div>
+                <div class="text-sm text-white/45">Возвращайся позже — рядом появятся новые люди</div>
+                <button class="btn-primary mt-6" style="max-width:220px; margin: 24px auto 0;" id="resetStack">
+                    <i class="fas fa-rotate mr-2"></i> Начать заново
+                </button>
+            </div>
+        `;
+        const btn = document.getElementById('resetStack');
+        if (btn) btn.addEventListener('click', () => {
+            currentCardIndex = 0;
+            renderSwipeCards();
+        });
+        return;
+    }
+
+    /* Build up to 2 cards stacked */
+    const remaining = TEST_USERS.slice(currentCardIndex).slice(0, 2);
+
+    for (let i = remaining.length - 1; i >= 0; i--) {
+        const user = remaining[i];
+        const card = document.createElement('div');
+        card.className = 'swipe-card';
+        card.style.zIndex = String(remaining.length - i);
+        card.style.transform = i === 0 ? 'scale(1) translateY(0)' : 'scale(0.94) translateY(12px)';
+        card.dataset.userId = user.id;
+
+        const tagsHtml = user.tags.map(t => {
+            let cls = 'tag-pill';
+            if (t.includes('Кофе') || t.includes('Ищу Ж')) cls += ' cyan';
+            if (t.includes('Большая группа') || t.includes('Не-фудкорт')) cls += ' emerald';
+            return `<span class="${cls}">${t}</span>`;
+        }).join('');
+
+        card.innerHTML = `
+            <div class="swipe-card-bg" style="background-image: url('${user.photo}');"></div>
+            <div class="swipe-card-gradient"></div>
+            <div class="swipe-indicator like">LIKE</div>
+            <div class="swipe-indicator pass">PASS</div>
+            <div class="swipe-card-info">
+                <div style="font-size:26px; font-weight:800; display:flex; align-items:center; gap:10px;">
+                    ${user.name}
+                    <span style="font-size:20px; font-weight:500; opacity:0.7;">${user.age}</span>
+                </div>
+                <div style="font-size:13px; color: rgba(255,255,255,0.55); margin-top:4px;">
+                    <i class="fas fa-location-dot"></i> ~250 м от тебя
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:10px;">${tagsHtml}</div>
+                <div style="font-size:14px; line-height:1.45; color: rgba(255,255,255,0.85); margin-top:10px;">
+                    "${user.status}"
+                </div>
+            </div>
+        `;
+
+        if (i === 0) {
+            attachSwipeLogic(card, user);
+            activeCard = card;
+        }
+
+        cardStack.appendChild(card);
+    }
+
+    /* Action buttons */
+    const actions = document.createElement('div');
+    actions.className = 'swipe-actions';
+    actions.innerHTML = `
+        <button class="swipe-btn pass" id="btnPass"><i class="fas fa-times"></i></button>
+        <button class="swipe-btn like" id="btnLike"><i class="fas fa-heart"></i></button>
+    `;
+    cardStack.appendChild(actions);
+
+    document.getElementById('btnPass').addEventListener('click', () => {
+        haptic('light');
+        doSwipe('left');
+    });
+    document.getElementById('btnLike').addEventListener('click', () => {
+        haptic('success');
+        doSwipe('right');
+    });
+}
+
+/* ---------- SWIPE LOGIC ---------- */
+function attachSwipeLogic(card, user) {
+    let startX = 0, startY = 0;
+    let currentX = 0, currentY = 0;
+    let dragging = false;
+
+    const likeInd = card.querySelector('.swipe-indicator.like');
+    const passInd = card.querySelector('.swipe-indicator.pass');
+
+    const onStart = (x, y) => {
+        startX = x;
+        startY = y;
+        currentX = x;
+        currentY = y;
+        dragging = true;
+        card.style.transition = 'none';
     };
 
-    profiles.unshift(newProfile);
-    localStorage.setItem('spotlight_profiles', JSON.stringify(profiles));
-    updateMapMarkers();
-    currentCardIndex = 0;
-    renderCardDeck();
-    alert('Ваша анкета опубликована на карте Москвы!');
-  }
+    const onMove = (x, y) => {
+        if (!dragging) return;
+        currentX = x;
+        currentY = y;
+        const dx = currentX - startX;
+        const dy = currentY - startY;
+        const rotate = dx / 18;
 
-  // 4. Переключение табов
-  function switchTab(tabName, el) {
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.getElementById(`tab-${tabName}`).classList.add('active');
-    el.classList.add('active');
-    if (tabName === 'map') setTimeout(() => map.invalidateSize(), 200);
-  }
+        card.style.transform = `translate(${dx}px, ${dy}px) rotate(${rotate}deg)`;
 
-  // 5. Админка
-  function loginAdmin() {
-    const pin = document.getElementById('adminPin').value;
-    if (pin === '1337') {
-      document.getElementById('adminPanel').style.display = 'block';
-      renderAdminList();
+        const likeOpacity = Math.max(0, Math.min(1, dx / 120));
+        const passOpacity = Math.max(0, Math.min(1, -dx / 120));
+        likeInd.style.opacity = String(likeOpacity);
+        passInd.style.opacity = String(passOpacity);
+    };
+
+    const onEnd = () => {
+        if (!dragging) return;
+        dragging = false;
+        const dx = currentX - startX;
+
+        if (dx > 110) {
+            doSwipe('right');
+        } else if (dx < -110) {
+            doSwipe('left');
+        } else {
+            card.style.transition = 'transform 0.3s ease';
+            card.style.transform = 'scale(1) translateY(0)';
+            likeInd.style.opacity = '0';
+            passInd.style.opacity = '0';
+        }
+    };
+
+    card.addEventListener('touchstart', e => onStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+    card.addEventListener('touchmove', e => onMove(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+    card.addEventListener('touchend', onEnd);
+
+    card.addEventListener('mousedown', e => onStart(e.clientX, e.clientY));
+    window.addEventListener('mousemove', e => { if (dragging) onMove(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', () => { if (dragging) onEnd(); });
+}
+
+function doSwipe(direction) {
+    if (!activeCard) return;
+    const card = activeCard;
+    activeCard = null;
+
+    const x = direction === 'right' ? 500 : -500;
+    card.style.transition = 'transform 0.4s ease, opacity 0.4s ease';
+    card.style.transform = `translate(${x}px, 40px) rotate(${direction === 'right' ? 30 : -30}deg)`;
+    card.style.opacity = '0';
+
+    if (direction === 'right') {
+        showToast('Лайк отправлен!', 'fa-heart');
     } else {
-      alert('Неверный PIN-код!');
+        showToast('Пропущено', 'fa-circle-xmark');
     }
-  }
 
-  function renderAdminList() {
-    const container = document.getElementById('adminUsersList');
-    container.innerHTML = profiles.map(p => `
-      <div class="admin-list-item">
-        <span><b>${p.name}</b> (${p.age}) — ${p.tag || ''}</span>
-        <button class="btn-del" onclick="deleteProfile(${p.id})">Удалить</button>
-      </div>
-    `).join('');
-  }
+    setTimeout(() => {
+        currentCardIndex++;
+        renderSwipeCards();
+    }, 320);
+}
 
-  function deleteProfile(id) {
-    profiles = profiles.filter(p => p.id !== id);
-    localStorage.setItem('spotlight_profiles', JSON.stringify(profiles));
-    updateMapMarkers();
-    renderCardDeck();
-    renderAdminList();
-  }
+/* =====================================================
+   SETTINGS SWITCHES
+   ===================================================== */
+function bindSwitch(id, onChange, initial = false) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (initial) el.classList.add('on');
+    el.addEventListener('click', () => {
+        haptic('select');
+        el.classList.toggle('on');
+        if (onChange) onChange(el.classList.contains('on'));
+    });
+}
+
+bindSwitch('ghostSwitch', (on) => {
+    ghostMode = on;
+    addAllMarkers();
+    showToast(on ? 'Режим Призрака включён' : 'Режим Призрака выключен', on ? 'fa-ghost' : 'fa-eye');
+});
+
+bindSwitch('geoSwitch', (on) => {
+    showToast(on ? 'Геолокация активна' : 'Геолокация отключена', on ? 'fa-satellite-dish' : 'fa-circle-xmark');
+}, true);
+
+bindSwitch('buildingsSwitch', (on) => {
+    showBuildings = on;
+    if (!map) return;
+    if (map.getLayer('3d-buildings')) {
+        map.setLayoutProperty('3d-buildings', 'visibility', on ? 'visible' : 'none');
+    }
+    showToast(on ? '3D здания включены' : '3D здания отключены', 'fa-building');
+}, true);
+
+bindSwitch('pulseSwitch', (on) => {
+    showPulse = on;
+    if (on) {
+        const s = document.getElementById('no-pulse-style');
+        if (s) s.remove();
+    } else {
+        if (!document.getElementById('no-pulse-style')) {
+            const style = document.createElement('style');
+            style.id = 'no-pulse-style';
+            style.textContent = '.user-marker::before { display: none !important; }';
+            document.head.appendChild(style);
+        }
+    }
+    showToast(on ? 'Пульсация включена' : 'Пульсация отключена', 'fa-wifi');
+}, true);
+
+bindSwitch('notifSwitch', (on) => {
+    showToast(on ? 'Уведомления включены' : 'Уведомления отключены', 'fa-bell');
+}, true);
+
+/* ADMIN ROW */
+document.getElementById('adminRow').addEventListener('click', () => {
+    haptic('medium');
+    openAdminSheet();
+});
+
+/* =====================================================
+   BOOT
+   ===================================================== */
+window.addEventListener('load', () => {
+    try {
+        initMap();
+    } catch (e) {
+        console.error('Map init error:', e);
+    }
+
+    setTimeout(() => {
+        document.getElementById('loader').classList.add('hidden');
+    }, 700);
+});
+
+window.addEventListener('resize', () => {
+    if (map) setTimeout(() => map.resize(), 150);
+});
 </script>
+
 </body>
 </html>
