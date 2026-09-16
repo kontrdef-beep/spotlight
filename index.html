@@ -1,1239 +1,348 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Spotlight — Локальные знакомства</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Spotlight — Знакомства Москвы</title>
+  
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #1e293b;
+      --accent-like: #10b981;
+      --accent-dislike: #f43f5e;
+      --primary: #6366f1;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; user-select: none; }
+    body { background-color: var(--bg); color: var(--text); overflow: hidden; height: 100vh; width: 100vw; }
+
+    #app { display: flex; flex-direction: column; height: 100vh; width: 100vw; position: relative; }
+
+    /* Табы */
+    .tab-content { flex: 1; display: none; position: relative; width: 100%; height: calc(100vh - 65px); }
+    .tab-content.active { display: block; }
+
+    /* Карта */
+    #map { width: 100%; height: 100%; z-index: 1; }
     
-    <!-- Telegram WebApp SDK -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        :root {
-            --bg-dark: #0a0a0f;
-            --bg-darker: #050508;
-            --glass-bg: rgba(20, 20, 30, 0.75);
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --neon-purple: #a855f7;
-            --neon-blue: #22d3ee;
-            --neon-yellow: #fbbf24;
-            --neon-pink: #ec4899;
-            --text-primary: #ffffff;
-            --text-secondary: #9ca3af;
-            --text-muted: #6b7280;
-            --header-height: 64px;
-            --pills-height: 52px;
-            --safe-bottom: env(safe-area-inset-bottom, 0px);
-        }
-
-        html, body {
-            height: 100%;
-            overflow: hidden;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-darker);
-            color: var(--text-primary);
-            -webkit-font-smoothing: antialiased;
-        }
-
-        #app {
-            position: relative;
-            width: 100%;
-            height: 100vh;
-            height: 100dvh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* ========== HEADER ========== */
-        .header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: var(--header-height);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 16px;
-            background: linear-gradient(180deg, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0) 100%);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .logo-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, var(--neon-purple), var(--neon-blue));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
-        }
-
-        .logo-text {
-            font-size: 20px;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #fff, var(--neon-blue));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .user-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 4px 4px 4px 12px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 100px;
-        }
-
-        .user-name {
-            font-size: 13px;
-            font-weight: 600;
-            max-width: 80px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .user-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--neon-purple), var(--neon-pink));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: 700;
-            overflow: hidden;
-        }
-
-        .user-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        /* ========== SECURITY BADGE ========== */
-        .security-badge {
-            position: absolute;
-            top: calc(var(--header-height) + 4px);
-            left: 12px;
-            right: 12px;
-            z-index: 999;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 14px;
-            background: rgba(20, 20, 35, 0.85);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(34, 211, 238, 0.2);
-            border-radius: 14px;
-            font-size: 11px;
-            line-height: 1.4;
-            color: var(--text-secondary);
-        }
-
-        .security-badge i {
-            color: var(--neon-blue);
-            font-size: 14px;
-            flex-shrink: 0;
-        }
-
-        /* ========== FILTER PILLS ========== */
-        .pills-container {
-            position: absolute;
-            top: calc(var(--header-height) + 54px);
-            left: 0;
-            right: 0;
-            z-index: 999;
-            overflow-x: auto;
-            overflow-y: hidden;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-            padding: 0 12px;
-        }
-
-        .pills-container::-webkit-scrollbar {
-            display: none;
-        }
-
-        .pills-scroll {
-            display: flex;
-            gap: 8px;
-            padding: 4px 0 12px 0;
-            width: max-content;
-        }
-
-        .pill {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 9px 16px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 100px;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            white-space: nowrap;
-            cursor: pointer;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            user-select: none;
-        }
-
-        .pill:active {
-            transform: scale(0.95);
-        }
-
-        .pill.active {
-            background: linear-gradient(135deg, var(--neon-purple), var(--neon-blue));
-            border-color: transparent;
-            color: #fff;
-            box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
-        }
-
-        /* ========== MAP ========== */
-        #map {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            background: var(--bg-darker);
-        }
-
-        .leaflet-container {
-            background: var(--bg-darker) !important;
-            font-family: 'Inter', sans-serif !important;
-        }
-
-        /* ========== ZONES (PULSING CIRCLES) ========== */
-        .zone-circle {
-            border-radius: 50%;
-            animation: pulseZone 3s ease-in-out infinite;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .zone-circle:hover {
-            transform: scale(1.05);
-        }
-
-        @keyframes pulseZone {
-            0%, 100% {
-                opacity: 0.35;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 0.65;
-                transform: scale(1.08);
-            }
-        }
-
-        .zone-circle.purple {
-            background: radial-gradient(circle, rgba(168, 85, 247, 0.6) 0%, rgba(168, 85, 247, 0.1) 70%, transparent 100%);
-            border: 2px solid rgba(168, 85, 247, 0.6);
-            box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
-        }
-
-        .zone-circle.blue {
-            background: radial-gradient(circle, rgba(34, 211, 238, 0.6) 0%, rgba(34, 211, 238, 0.1) 70%, transparent 100%);
-            border: 2px solid rgba(34, 211, 238, 0.6);
-            box-shadow: 0 0 30px rgba(34, 211, 238, 0.5);
-        }
-
-        .zone-circle.yellow {
-            background: radial-gradient(circle, rgba(251, 191, 36, 0.6) 0%, rgba(251, 191, 36, 0.1) 70%, transparent 100%);
-            border: 2px solid rgba(251, 191, 36, 0.6);
-            box-shadow: 0 0 30px rgba(251, 191, 36, 0.5);
-        }
-
-        .zone-circle.pink {
-            background: radial-gradient(circle, rgba(236, 72, 153, 0.6) 0%, rgba(236, 72, 153, 0.1) 70%, transparent 100%);
-            border: 2px solid rgba(236, 72, 153, 0.6);
-            box-shadow: 0 0 30px rgba(236, 72, 153, 0.5);
-        }
-
-        /* ========== FAB ========== */
-        .fab {
-            position: absolute;
-            bottom: calc(24px + var(--safe-bottom));
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 16px 28px;
-            background: linear-gradient(135deg, var(--neon-purple), var(--neon-blue));
-            border: none;
-            border-radius: 100px;
-            color: #fff;
-            font-size: 15px;
-            font-weight: 700;
-            font-family: 'Inter', sans-serif;
-            cursor: pointer;
-            box-shadow: 0 8px 32px rgba(168, 85, 247, 0.5), 0 0 0 1px rgba(255,255,255,0.1) inset;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            white-space: nowrap;
-        }
-
-        .fab:active {
-            transform: translateX(-50%) scale(0.95);
-            box-shadow: 0 4px 20px rgba(168, 85, 247, 0.6);
-        }
-
-        .fab i {
-            font-size: 18px;
-        }
-
-        /* ========== BOTTOM SHEET ========== */
-        .bottom-sheet-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .bottom-sheet-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .bottom-sheet {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 2001;
-            background: rgba(15, 15, 22, 0.98);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
-            border-top-left-radius: 24px;
-            border-top-right-radius: 24px;
-            border-top: 1px solid var(--glass-border);
-            padding: 8px 20px calc(24px + var(--safe-bottom));
-            transform: translateY(100%);
-            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            max-height: 70vh;
-            overflow-y: auto;
-        }
-
-        .bottom-sheet.active {
-            transform: translateY(0);
-        }
-
-        .sheet-handle {
-            width: 40px;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 2px;
-            margin: 0 auto 16px;
-        }
-
-        .sheet-title {
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .sheet-subtitle {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-bottom: 20px;
-        }
-
-        .sheet-subtitle .count {
-            color: var(--neon-blue);
-            font-weight: 700;
-        }
-
-        /* ========== PROFILE CARDS ========== */
-        .profile-card {
-            display: flex;
-            gap: 14px;
-            padding: 16px;
-            background: rgba(30, 30, 45, 0.6);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            margin-bottom: 12px;
-            transition: all 0.2s ease;
-        }
-
-        .profile-card:active {
-            transform: scale(0.98);
-            background: rgba(40, 40, 60, 0.6);
-        }
-
-        .profile-avatar {
-            width: 52px;
-            height: 52px;
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            font-weight: 700;
-            flex-shrink: 0;
-            overflow: hidden;
-        }
-
-        .profile-avatar.purple { background: linear-gradient(135deg, #a855f7, #7c3aed); }
-        .profile-avatar.blue { background: linear-gradient(135deg, #22d3ee, #0891b2); }
-        .profile-avatar.yellow { background: linear-gradient(135deg, #fbbf24, #d97706); }
-        .profile-avatar.pink { background: linear-gradient(135deg, #ec4899, #be185d); }
-
-        .profile-avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .profile-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .profile-name {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .profile-name .age {
-            color: var(--text-secondary);
-            font-weight: 500;
-            font-size: 14px;
-        }
-
-        .online-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #22c55e;
-            box-shadow: 0 0 8px #22c55e;
-            animation: onlinePulse 2s infinite;
-        }
-
-        @keyframes onlinePulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        .profile-location {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .profile-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            margin-bottom: 8px;
-        }
-
-        .tag {
-            padding: 4px 10px;
-            background: rgba(168, 85, 247, 0.15);
-            border: 1px solid rgba(168, 85, 247, 0.3);
-            border-radius: 100px;
-            font-size: 11px;
-            font-weight: 600;
-            color: #c4b5fd;
-        }
-
-        .tag.blue {
-            background: rgba(34, 211, 238, 0.15);
-            border-color: rgba(34, 211, 238, 0.3);
-            color: #67e8f9;
-        }
-
-        .tag.yellow {
-            background: rgba(251, 191, 36, 0.15);
-            border-color: rgba(251, 191, 36, 0.3);
-            color: #fde68a;
-        }
-
-        .profile-status {
-            font-size: 13px;
-            color: var(--text-secondary);
-            line-height: 1.4;
-            font-style: italic;
-        }
-
-        /* ========== MODAL (CREATE STATUS) ========== */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 3000;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .modal-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .modal {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 3001;
-            background: rgba(15, 15, 22, 0.98);
-            backdrop-filter: blur(30px);
-            -webkit-backdrop-filter: blur(30px);
-            border-top-left-radius: 24px;
-            border-top-right-radius: 24px;
-            border-top: 1px solid var(--glass-border);
-            padding: 8px 20px calc(24px + var(--safe-bottom));
-            transform: translateY(100%);
-            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            max-height: 85vh;
-            overflow-y: auto;
-        }
-
-        .modal.active {
-            transform: translateY(0);
-        }
-
-        .modal-title {
-            font-size: 22px;
-            font-weight: 800;
-            margin-bottom: 6px;
-        }
-
-        .modal-subtitle {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-bottom: 20px;
-        }
-
-        .modal-label {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-bottom: 10px;
-            display: block;
-        }
-
-        .tag-selector {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        .tag-option {
-            padding: 10px 16px;
-            background: rgba(30, 30, 45, 0.8);
-            border: 1px solid var(--glass-border);
-            border-radius: 100px;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.2s ease;
-            user-select: none;
-        }
-
-        .tag-option:active {
-            transform: scale(0.95);
-        }
-
-        .tag-option.selected {
-            background: linear-gradient(135deg, var(--neon-purple), var(--neon-blue));
-            border-color: transparent;
-            color: #fff;
-        }
-
-        .status-input {
-            width: 100%;
-            padding: 16px;
-            background: rgba(30, 30, 45, 0.8);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            color: var(--text-primary);
-            font-family: 'Inter', sans-serif;
-            font-size: 14px;
-            resize: none;
-            min-height: 100px;
-            outline: none;
-            transition: border-color 0.2s ease;
-            margin-bottom: 20px;
-        }
-
-        .status-input:focus {
-            border-color: var(--neon-purple);
-        }
-
-        .status-input::placeholder {
-            color: var(--text-muted);
-        }
-
-        .btn-submit {
-            width: 100%;
-            padding: 16px;
-            background: linear-gradient(135deg, var(--neon-purple), var(--neon-blue));
-            border: none;
-            border-radius: 16px;
-            color: #fff;
-            font-family: 'Inter', sans-serif;
-            font-size: 16px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 8px 24px rgba(168, 85, 247, 0.4);
-        }
-
-        .btn-submit:active {
-            transform: scale(0.98);
-        }
-
-        .btn-submit:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        /* ========== TOAST ========== */
-        .toast {
-            position: fixed;
-            top: calc(var(--header-height) + 60px);
-            left: 50%;
-            transform: translateX(-50%) translateY(-20px);
-            z-index: 5000;
-            padding: 14px 24px;
-            background: rgba(20, 20, 35, 0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(34, 211, 238, 0.3);
-            border-radius: 14px;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-            max-width: 90vw;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-        }
-
-        .toast.active {
-            opacity: 1;
-            visibility: visible;
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .toast i {
-            color: var(--neon-blue);
-            font-size: 18px;
-        }
-
-        /* ========== LOADING ========== */
-        .loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 9999;
-            background: var(--bg-darker);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-            transition: opacity 0.5s ease, visibility 0.5s ease;
-        }
-
-        .loading-screen.hidden {
-            opacity: 0;
-            visibility: hidden;
-        }
-
-        .loading-logo {
-            width: 64px;
-            height: 64px;
-            border-radius: 20px;
-            background: linear-gradient(135deg, var(--neon-purple), var(--neon-blue));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            animation: loadingPulse 1.5s ease-in-out infinite;
-            box-shadow: 0 0 40px rgba(168, 85, 247, 0.6);
-        }
-
-        @keyframes loadingPulse {
-            0%, 100% { transform: scale(1); box-shadow: 0 0 40px rgba(168, 85, 247, 0.6); }
-            50% { transform: scale(1.1); box-shadow: 0 0 60px rgba(34, 211, 238, 0.8); }
-        }
-
-        .loading-text {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            letter-spacing: 2px;
-        }
-
-        /* ========== LEAFLET CONTROLS ========== */
-        .leaflet-control-zoom {
-            display: none !important;
-        }
-
-        .leaflet-control-attribution {
-            display: none !important;
-        }
-
-        /* ========== SCROLLBAR HIDE ========== */
-        .bottom-sheet::-webkit-scrollbar,
-        .modal::-webkit-scrollbar {
-            display: none;
-        }
-
-        .bottom-sheet,
-        .modal {
-            scrollbar-width: none;
-        }
-    </style>
+    .leaflet-popup-content-wrapper { background: var(--card-bg); color: var(--text); border-radius: 16px; padding: 5px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); }
+    .leaflet-popup-tip { background: var(--card-bg); }
+    .map-popup-card { text-align: center; padding: 10px; width: 180px; }
+    .map-popup-card img { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; margin-bottom: 8px; }
+    .map-popup-card h4 { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+    .map-popup-card p { font-size: 12px; color: var(--text-muted); }
+
+    /* Свайпы */
+    .swipe-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 15px; background: radial-gradient(circle at top, #1e1b4b 0%, var(--bg) 70%); }
+    .card-deck { position: relative; width: 100%; max-width: 380px; height: 70vh; }
+    .card { position: absolute; width: 100%; height: 100%; background: var(--card-bg); border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; box-shadow: 0 20px 30px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.1); touch-action: none; transition: transform 0.1s ease-out; }
+    .card-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+    .card-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 60%; background: linear-gradient(to top, rgba(11,15,25,0.95) 10%, rgba(11,15,25,0.4) 60%, transparent); pointer-events: none; }
+    .card-info { position: relative; z-index: 3; pointer-events: none; }
+    .card-name { font-size: 26px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+    .card-badge { font-size: 12px; padding: 2px 8px; background: rgba(99,102,241,0.3); border: 1px solid var(--primary); border-radius: 12px; color: #a5b4fc; }
+    .card-bio { font-size: 14px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
+
+    .swipe-actions { display: flex; gap: 30px; margin-top: 20px; z-index: 10; }
+    .btn-action { width: 65px; height: 65px; border-radius: 50%; border: none; font-size: 26px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; box-shadow: 0 10px 20px rgba(0,0,0,0.4); transition: transform 0.2s; }
+    .btn-dislike { background: var(--accent-dislike); }
+    .btn-like { background: var(--accent-like); }
+    .btn-action:active { transform: scale(0.85); }
+
+    /* Профиль и Формы */
+    .form-container { padding: 25px; overflow-y: auto; height: 100%; background: var(--bg); }
+    .form-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; color: var(--text); }
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; margin-bottom: 6px; color: var(--text-muted); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-control { width: 100%; padding: 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); background: #1e293b; color: #fff; font-size: 15px; outline: none; transition: border-color 0.2s; }
+    .form-control:focus { border-color: var(--primary); }
+    .btn-primary { width: 100%; padding: 16px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 14px; color: white; font-weight: 700; font-size: 16px; cursor: pointer; box-shadow: 0 8px 20px rgba(99,102,241,0.3); }
+
+    /* Навигация */
+    .nav-bar { height: 65px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-around; align-items: center; backdrop-filter: blur(12px); z-index: 1000; }
+    .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text-muted); font-size: 10px; font-weight: 600; cursor: pointer; transition: color 0.2s; }
+    .nav-item i { font-size: 22px; }
+    .nav-item.active { color: #38bdf8; }
+
+    /* Админка */
+    .admin-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+    .btn-del { background: #ef4444; border: none; color: white; padding: 5px 10px; border-radius: 6px; cursor: pointer; }
+  </style>
 </head>
 <body>
 
-    <!-- LOADING SCREEN -->
-    <div class="loading-screen" id="loadingScreen">
-        <div class="loading-logo">
-            <i class="fas fa-location-dot" style="color: #fff;"></i>
-        </div>
-        <div class="loading-text">SPOTLIGHT</div>
+<div id="app">
+  <!-- Вкладка 1: Карта -->
+  <div id="tab-map" class="tab-content active">
+    <div id="map"></div>
+  </div>
+
+  <!-- Вкладка 2: Свайпы -->
+  <div id="tab-swipe" class="tab-content">
+    <div class="swipe-container">
+      <div class="card-deck" id="cardDeck"></div>
+      <div class="swipe-actions">
+        <button class="btn-action btn-dislike" onclick="triggerSwipe(false)"><i class="fas fa-times"></i></button>
+        <button class="btn-action btn-like" onclick="triggerSwipe(true)"><i class="fas fa-heart"></i></button>
+      </div>
     </div>
+  </div>
 
-    <!-- MAIN APP -->
-    <div id="app">
-        
-        <!-- HEADER -->
-        <header class="header">
-            <div class="logo">
-                <div class="logo-icon">
-                    <i class="fas fa-location-dot" style="color: #fff;"></i>
-                </div>
-                <span class="logo-text">Spotlight</span>
-            </div>
-            <div class="user-badge" id="userBadge">
-                <span class="user-name" id="userName">Гость</span>
-                <div class="user-avatar" id="userAvatar">
-                    <i class="fas fa-user"></i>
-                </div>
-            </div>
-        </header>
-
-        <!-- SECURITY BADGE -->
-        <div class="security-badge">
-            <i class="fas fa-shield-halved"></i>
-            <span>🛡️ Геолокация защищена. Точный IP и адрес не передаются. Авто-отключение при выходе из зоны</span>
-        </div>
-
-        <!-- FILTER PILLS -->
-        <div class="pills-container">
-            <div class="pills-scroll" id="pillsScroll">
-                <div class="pill active" data-filter="all">✨ Все</div>
-                <div class="pill" data-filter="company">💬 Ищу компанию</div>
-                <div class="pill" data-filter="male">♂️ Ищу М</div>
-                <div class="pill" data-filter="female">♀️ Ищу Ж</div>
-                <div class="pill" data-filter="group">👥 Большая группа</div>
-                <div class="pill" data-filter="coffee">☕ Кофе/Учеба</div>
-                <div class="pill" data-filter="nofood">📍 Не-фудкорт</div>
-            </div>
-        </div>
-
-        <!-- MAP -->
-        <div id="map"></div>
-
-        <!-- FAB -->
-        <button class="fab" id="fabCreate">
-            <i class="fas fa-plus"></i>
-            <span>Поставить метку</span>
-        </button>
-
-        <!-- BOTTOM SHEET (ZONE INFO) -->
-        <div class="bottom-sheet-overlay" id="sheetOverlay"></div>
-        <div class="bottom-sheet" id="bottomSheet">
-            <div class="sheet-handle"></div>
-            <div class="sheet-title" id="sheetTitle">Зона активности</div>
-            <div class="sheet-subtitle">
-                <span class="count" id="sheetCount">0</span> человек рядом
-            </div>
-            <div id="sheetProfiles"></div>
-        </div>
-
-        <!-- MODAL (CREATE STATUS) -->
-        <div class="modal-overlay" id="modalOverlay"></div>
-        <div class="modal" id="modalCreate">
-            <div class="sheet-handle"></div>
-            <div class="modal-title">Создать метку</div>
-            <div class="modal-subtitle">Расскажи, где ты и чем занят</div>
-            
-            <label class="modal-label">Выбери теги</label>
-            <div class="tag-selector" id="tagSelector">
-                <div class="tag-option" data-tag="Ищу М">♂️ Ищу М</div>
-                <div class="tag-option" data-tag="Ищу Ж">♀️ Ищу Ж</div>
-                <div class="tag-option" data-tag="Компания">💬 Компания</div>
-                <div class="tag-option" data-tag="Учеба">📚 Учеба</div>
-            </div>
-
-            <label class="modal-label">Статус</label>
-            <textarea class="status-input" id="statusInput" placeholder="Например: Сижу в кофейне, пью раф, ищу компанию..."></textarea>
-
-            <button class="btn-submit" id="btnSubmit" disabled>Опубликовать</button>
-        </div>
-
-        <!-- TOAST -->
-        <div class="toast" id="toast">
-            <i class="fas fa-check-circle"></i>
-            <span id="toastText">Готово!</span>
-        </div>
-
+  <!-- Вкладка 3: Мой Профиль -->
+  <div id="tab-profile" class="tab-content">
+    <div class="form-container">
+      <div class="form-title">Редактировать Анкету</div>
+      <div class="form-group">
+        <label>Ваше Имя</label>
+        <input type="text" id="profName" class="form-control" placeholder="Например: Саша">
+      </div>
+      <div class="form-group">
+        <label>Возраст</label>
+        <input type="number" id="profAge" class="form-control" placeholder="20">
+      </div>
+      <div class="form-group">
+        <label>Вуз / Занятие</label>
+        <input type="text" id="profTag" class="form-control" placeholder="МГУ им. Ломоносова">
+      </div>
+      <div class="form-group">
+        <label>О себе</label>
+        <textarea id="profBio" class="form-control" rows="3" placeholder="Учусь на ВМК, вечер проводим в парке..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Ссылка на фото профиля (URL)</label>
+        <input type="text" id="profPhoto" class="form-control" placeholder="https://images.unsplash.com/...">
+      </div>
+      <button class="btn-primary" onclick="saveUserProfile()">Опубликовать анкету</button>
     </div>
+  </div>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Вкладка 4: Настройки & Админка -->
+  <div id="tab-settings" class="tab-content">
+    <div class="form-container">
+      <div class="form-title">Настройки</div>
+      <div class="form-group">
+        <label>Радиус поиска анкет (км)</label>
+        <input type="number" class="form-control" value="10">
+      </div>
+      
+      <hr style="border-color: rgba(255,255,255,0.1); margin: 25px 0;">
+      
+      <div class="form-title" style="color: #ef4444; font-size: 18px;">Администрирование</div>
+      <div class="form-group">
+        <label>PIN-код Администратора</label>
+        <input type="password" id="adminPin" class="form-control" placeholder="Введите код">
+      </div>
+      <button class="btn-primary" style="background: #334155; box-shadow: none;" onclick="loginAdmin()">Войти в панель</button>
+      
+      <div id="adminPanel" style="display: none; margin-top: 25px; background: #1e293b; padding: 15px; border-radius: 14px;">
+        <h4 style="color: #ef4444; margin-bottom: 12px;">Активные анкеты системы</h4>
+        <div id="adminUsersList"></div>
+      </div>
+    </div>
+  </div>
 
-    <script>
-        // ============================================================
-        // SPOTLIGHT TWA — MAIN LOGIC
-        // ============================================================
+  <!-- Нижняя Панель Навигации -->
+  <nav class="nav-bar">
+    <div class="nav-item active" onclick="switchTab('map', this)"><i class="fas fa-map-marked-alt"></i><span>Карта</span></div>
+    <div class="nav-item" onclick="switchTab('swipe', this)"><i class="fas fa-fire"></i><span>Анкеты</span></div>
+    <div class="nav-item" onclick="switchTab('profile', this)"><i class="fas fa-user"></i><span>Профиль</span></div>
+    <div class="nav-item" onclick="switchTab('settings', this)"><i class="fas fa-cog"></i><span>Настройки</span></div>
+  </nav>
+</div>
 
-        // ---------- TELEGRAM WEBAPP INIT ----------
-        const tg = window.Telegram?.WebApp;
-        if (tg) {
-            tg.ready();
-            tg.expand();
-            tg.setHeaderColor('#0a0a0f');
-            tg.setBackgroundColor('#0a0a0f');
-        }
+<script>
+  // Инициализация Telegram WebApp
+  const tg = window.Telegram?.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
 
-        // ---------- USER DATA ----------
-        const tgUser = tg?.initDataUnsafe?.user;
-        const userName = tgUser ? (tgUser.first_name || 'Гость') : 'Гость';
-        const userId = tgUser ? tgUser.id : null;
-        const userPhoto = tgUser?.photo_url || null;
+  // 1. Инициализация карты CartoDB Voyager
+  const map = L.map('map', { zoomControl: false }).setView([55.7558, 37.6173], 12);
+  
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20,
+    subdomains: 'abcd',
+    attribution: '© CARTO'
+  }).addTo(map);
 
-        document.getElementById('userName').textContent = userName;
-        if (userPhoto) {
-            document.getElementById('userAvatar').innerHTML = `<img src="${userPhoto}" alt="">`;
-        } else {
-            document.getElementById('userAvatar').innerHTML = `<span>${userName.charAt(0).toUpperCase()}</span>`;
-        }
+  // Геолокация
+  let userLocation = [55.7558, 37.6173];
+  map.locate({setView: true, maxZoom: 14});
+  
+  let userMarker;
+  map.on('locationfound', function(e) {
+    userLocation = [e.latlng.lat, e.latlng.lng];
+    if (!userMarker) {
+      userMarker = L.circleMarker(e.latlng, { radius: 10, fillColor: '#38bdf8', color: '#fff', weight: 3, fillOpacity: 1 }).addTo(map);
+      userMarker.bindPopup("<b>Вы здесь</b>");
+    } else {
+      userMarker.setLatLng(e.latlng);
+    }
+  });
 
-        // ---------- TEST DATA: ZONES ----------
-        const zones = [
-            {
-                id: 'zone1',
-                name: 'Китай-город',
-                lat: 55.7558,
-                lng: 37.6173,
-                color: 'purple',
-                radius: 250,
-                profiles: [
-                    {
-                        name: 'Лера',
-                        age: 19,
-                        location: 'Китай-город',
-                        tags: ['♀️ Ищу М', '☕ Кофе', 'Учеба'],
-                        status: 'Сделала уроки, пью раф, ищу компанию на прогулку',
-                        avatarColor: 'purple',
-                        online: true
-                    }
-                ]
-            },
-            {
-                id: 'zone2',
-                name: 'Хохловка',
-                lat: 55.7590,
-                lng: 37.6300,
-                color: 'blue',
-                radius: 200,
-                profiles: [
-                    {
-                        name: 'Никита',
-                        age: 21,
-                        location: 'Хохловка',
-                        tags: ['💬 Ищу компанию'],
-                        status: 'Катаюсь на скейте, кто со мной?',
-                        avatarColor: 'blue',
-                        online: true
-                    }
-                ]
-            },
-            {
-                id: 'zone3',
-                name: 'Чистые Пруды',
-                lat: 55.7640,
-                lng: 37.6380,
-                color: 'yellow',
-                radius: 300,
-                profiles: [
-                    {
-                        name: 'Тусовка 5+',
-                        age: 20,
-                        location: 'Чистые Пруды',
-                        tags: ['👥 Большая группа', '📍 Не-фудкорт'],
-                        status: 'Сидим на лавочках, играем на гитаре',
-                        avatarColor: 'yellow',
-                        online: true
-                    }
-                ]
-            },
-            {
-                id: 'zone4',
-                name: 'Парк Горького',
-                lat: 55.7300,
-                lng: 37.6000,
-                color: 'pink',
-                radius: 280,
-                profiles: [
-                    {
-                        name: 'Аня',
-                        age: 18,
-                        location: 'Парк Горького',
-                        tags: ['♀️ Ищу Ж', '☕ Кофе'],
-                        status: 'Гуляю по парку, хочу найти подругу для прогулок',
-                        avatarColor: 'pink',
-                        online: false
-                    }
-                ]
-            }
-        ];
+  // База анкет
+  let profiles = JSON.parse(localStorage.getItem('spotlight_profiles')) || [
+    { id: 1, name: "Катя", age: 20, tag: "ВШЭ", bio: "Ищу компанию для прогулок по Покровке и кофе ☕", photo: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500", lat: 55.7580, lng: 37.6400 },
+    { id: 2, name: "Артем", age: 22, bio: "Пишу код на Python, катаюсь на скейте в Парке Горького 🛹", tag: "МГТУ Баумана", photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=500", lat: 55.7660, lng: 37.6830 },
+    { id: 3, name: "Даша", age: 19, bio: "Учусь на журфаке МГУ, люблю выставки в ГЭС-2 🎨", tag: "МГУ", photo: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=500", lat: 55.7480, lng: 37.6110 }
+  ];
 
-        // ---------- MAP INIT ----------
-        const map = L.map('map', {
-            center: [55.7558, 37.6173],
-            zoom: 14,
-            zoomControl: false,
-            attributionControl: false
-        });
+  let mapMarkers = [];
+  function updateMapMarkers() {
+    mapMarkers.forEach(m => map.removeLayer(m));
+    mapMarkers = [];
+    profiles.forEach(p => {
+      const m = L.marker([p.lat, p.lng]).addTo(map);
+      m.bindPopup(`
+        <div class="map-popup-card">
+          <img src="${p.photo}">
+          <h4>${p.name}, ${p.age}</h4>
+          <p>${p.tag || ''}</p>
+        </div>
+      `);
+      mapMarkers.push(m);
+    });
+  }
+  updateMapMarkers();
 
-        // Тёмная подложка CartoDB DarkMatter
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png', {
-            subdomains: 'abcd',
-            maxZoom: 20,
-            detectRetina: true
-        }).addTo(map);
+  // 2. Механика Свайпов
+  let currentCardIndex = 0;
+  function renderCardDeck() {
+    const deck = document.getElementById('cardDeck');
+    deck.innerHTML = '';
+    
+    if (currentCardIndex >= profiles.length) {
+      deck.innerHTML = `<div style="text-align:center; padding-top:40%; color:var(--text-muted); font-weight:600;">Анкеты поблизости закончились!<br><br>Попробуйте зайти позже.</div>`;
+      return;
+    }
 
-        // ---------- RENDER ZONES ----------
-        const zoneLayers = {};
+    const p = profiles[currentCardIndex];
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'activeCard';
+    card.innerHTML = `
+      <img class="card-img" src="${p.photo}">
+      <div class="card-gradient"></div>
+      <div class="card-info">
+        <div class="card-name">${p.name}, ${p.age} <span class="card-badge">${p.tag || 'Москва'}</span></div>
+        <div class="card-bio">${p.bio}</div>
+      </div>
+    `;
+    deck.appendChild(card);
+    setupDrag(card);
+  }
 
-        zones.forEach(zone => {
-            // Кастомный круг с пульсацией через CSS
-            const circle = L.circle([zone.lat, zone.lng], {
-                radius: zone.radius,
-                className: `zone-circle ${zone.color}`,
-                fillColor: 'transparent',
-                fillOpacity: 0,
-                color: 'transparent',
-                weight: 0
-            }).addTo(map);
+  function triggerSwipe(isLike) {
+    const card = document.getElementById('activeCard');
+    if (!card) return;
+    card.style.transition = 'transform 0.4s ease, opacity 0.4s ease';
+    card.style.transform = `translate(${isLike ? 500 : -500}px, 0px) rotate(${isLike ? 30 : -30}deg)`;
+    card.style.opacity = '0';
+    setTimeout(() => {
+      currentCardIndex++;
+      renderCardDeck();
+    }, 300);
+  }
 
-            // Клик по зоне — открыть карточку
-            circle.on('click', () => {
-                openBottomSheet(zone);
-            });
+  function setupDrag(el) {
+    let startX = 0, currentX = 0;
+    const onStart = (e) => { startX = e.touches ? e.touches[0].clientX : e.clientX; };
+    const onMove = (e) => {
+      if (!startX) return;
+      currentX = (e.touches ? e.touches[0].clientX : e.clientX) - startX;
+      el.style.transform = `translate(${currentX}px, 0px) rotate(${currentX * 0.08}deg)`;
+    };
+    const onEnd = () => {
+      if (Math.abs(currentX) > 100) {
+        triggerSwipe(currentX > 0);
+      } else {
+        el.style.transform = 'translate(0, 0) rotate(0)';
+      }
+      startX = 0; currentX = 0;
+    };
+    el.addEventListener('touchstart', onStart);
+    el.addEventListener('touchmove', onMove);
+    el.addEventListener('touchend', onEnd);
+    el.addEventListener('mousedown', onStart);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+  }
 
-            zoneLayers[zone.id] = { circle, zone };
-        });
+  renderCardDeck();
 
-        // ---------- OPEN BOTTOM SHEET ----------
-        const sheetOverlay = document.getElementById('sheetOverlay');
-        const bottomSheet = document.getElementById('bottomSheet');
-        const sheetTitle = document.getElementById('sheetTitle');
-        const sheetCount = document.getElementById('sheetCount');
-        const sheetProfiles = document.getElementById('sheetProfiles');
+  // 3. Сохранение профиля
+  function saveUserProfile() {
+    const name = document.getElementById('profName').value;
+    const age = document.getElementById('profAge').value;
+    const tag = document.getElementById('profTag').value;
+    const bio = document.getElementById('profBio').value;
+    const photo = document.getElementById('profPhoto').value;
 
-        function openBottomSheet(zone) {
-            sheetTitle.textContent = zone.name;
-            sheetCount.textContent = zone.profiles.length;
+    if (!name || !age) return alert('Укажите имя и возраст!');
 
-            // Рендер профилей
-            sheetProfiles.innerHTML = zone.profiles.map(profile => `
-                <div class="profile-card">
-                    <div class="profile-avatar ${profile.avatarColor}">
-                        ${profile.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div class="profile-info">
-                        <div class="profile-name">
-                            ${profile.name}
-                            <span class="age">${profile.age} лет</span>
-                            ${profile.online ? '<span class="online-dot"></span>' : ''}
-                        </div>
-                        <div class="profile-location">
-                            <i class="fas fa-location-dot"></i>
-                            ${profile.location}
-                        </div>
-                        <div class="profile-tags">
-                            ${profile.tags.map(tag => {
-                                let cls = 'tag';
-                                if (tag.includes('Ищу Ж') || tag.includes('Кофе')) cls += ' blue';
-                                if (tag.includes('Большая группа') || tag.includes('Не-фудкорт')) cls += ' yellow';
-                                return `<span class="${cls}">${tag}</span>`;
-                            }).join('')}
-                        </div>
-                        <div class="profile-status">"${profile.status}"</div>
-                    </div>
-                </div>
-            `).join('');
+    const newProfile = {
+      id: Date.now(),
+      name: name,
+      age: parseInt(age),
+      tag: tag || 'Студент',
+      bio: bio || 'Описание отсутствует',
+      photo: photo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=500',
+      lat: userLocation[0] + (Math.random() - 0.5) * 0.01,
+      lng: userLocation[1] + (Math.random() - 0.5) * 0.01
+    };
 
-            bottomSheet.classList.add('active');
-            sheetOverlay.classList.add('active');
-        }
+    profiles.unshift(newProfile);
+    localStorage.setItem('spotlight_profiles', JSON.stringify(profiles));
+    updateMapMarkers();
+    currentCardIndex = 0;
+    renderCardDeck();
+    alert('Ваша анкета опубликована на карте Москвы!');
+  }
 
-        function closeBottomSheet() {
-            bottomSheet.classList.remove('active');
-            sheetOverlay.classList.remove('active');
-        }
+  // 4. Переключение табов
+  function switchTab(tabName, el) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    el.classList.add('active');
+    if (tabName === 'map') setTimeout(() => map.invalidateSize(), 200);
+  }
 
-        sheetOverlay.addEventListener('click', closeBottomSheet);
+  // 5. Админка
+  function loginAdmin() {
+    const pin = document.getElementById('adminPin').value;
+    if (pin === '1337') {
+      document.getElementById('adminPanel').style.display = 'block';
+      renderAdminList();
+    } else {
+      alert('Неверный PIN-код!');
+    }
+  }
 
-        // ---------- FILTER PILLS ----------
-        const pills = document.querySelectorAll('.pill');
-        pills.forEach(pill => {
-            pill.addEventListener('click', () => {
-                pills.forEach(p => p.classList.remove('active'));
-                pill.classList.add('active');
+  function renderAdminList() {
+    const container = document.getElementById('adminUsersList');
+    container.innerHTML = profiles.map(p => `
+      <div class="admin-list-item">
+        <span><b>${p.name}</b> (${p.age}) — ${p.tag || ''}</span>
+        <button class="btn-del" onclick="deleteProfile(${p.id})">Удалить</button>
+      </div>
+    `).join('');
+  }
 
-                const filter = pill.dataset.filter;
-                filterZones(filter);
-            });
-        });
-
-        function filterZones(filter) {
-            zones.forEach(zone => {
-                const layer = zoneLayers[zone.id];
-                if (!layer) return;
-
-                let visible = false;
-
-                if (filter === 'all') {
-                    visible = true;
-                } else {
-                    // Проверяем теги профилей в зоне
-                    visible = zone.profiles.some(profile => {
-                        return profile.tags.some(tag => {
-                            if (filter === 'company' && tag.includes('Компания')) return true;
-                            if (filter === 'male' && tag.includes('Ищу М')) return true;
-                            if (filter === 'female' && tag.includes('Ищу Ж')) return true;
-                            if (filter === 'group' && tag.includes('Большая группа')) return true;
-                            if (filter === 'coffee' && tag.includes('Кофе')) return true;
-                            if (filter === 'nofood' && tag.includes('Не-фудкорт')) return true;
-                            return false;
-                        });
-                    });
-                }
-
-                if (visible) {
-                    layer.circle.addTo(map);
-                } else {
-                    map.removeLayer(layer.circle);
-                }
-            });
-        }
-
-        // ---------- FAB / MODAL CREATE ----------
-        const fabCreate = document.getElementById('fabCreate');
-        const modalOverlay = document.getElementById('modalOverlay');
-        const modalCreate = document.getElementById('modalCreate');
-        const tagOptions = document.querySelectorAll('.tag-option');
-        const statusInput = document.getElementById('statusInput');
-        const btnSubmit = document.getElementById('btnSubmit');
-
-        let selectedTags = [];
-
-        fabCreate.addEventListener('click', () => {
-            modalCreate.classList.add('active');
-            modalOverlay.classList.add('active');
-        });
-
-        function closeModal() {
-            modalCreate.classList.remove('active');
-            modalOverlay.classList.remove('active');
-        }
-
-        modalOverlay.addEventListener('click', closeModal);
-
-        // Выбор тегов
-        tagOptions.forEach(option => {
-            option.addEventListener('click', () => {
-                const tag = option.dataset.tag;
-                if (selectedTags.includes(tag)) {
-                    selectedTags = selectedTags.filter(t => t !== tag);
-                    option.classList.remove('selected');
-                } else {
-                    selectedTags.push(tag);
-                    option.classList.add('selected');
-                }
-                validateForm();
-            });
-        });
-
-        // Валидация формы
-        statusInput.addEventListener('input', validateForm);
-
-        function validateForm() {
-            const hasTags = selectedTags.length > 0;
-            const hasText = statusInput.value.trim().length > 0;
-            btnSubmit.disabled = !(hasTags && hasText);
-        }
-
-        // Отправка
-        btnSubmit.addEventListener('click', () => {
-            const status = statusInput.value.trim();
-            if (selectedTags.length === 0 || !status) return;
-
-            // Имитация создания метки
-            showToast('Метка создана! Тебя увидят рядом');
-
-            // Сброс формы
-            selectedTags = [];
-            tagOptions.forEach(o => o.classList.remove('selected'));
-            statusInput.value = '';
-            btnSubmit.disabled = true;
-
-            closeModal();
-
-            // Добавляем новую зону рядом с текущим центром (для демо)
-            const newZone = {
-                id: 'zone_new_' + Date.now(),
-                name: 'Твоя метка',
-                lat: 55.7558 + (Math.random() - 0.5) * 0.01,
-                lng: 37.6173 + (Math.random() - 0.5) * 0.01,
-                color: 'purple',
-                radius: 200,
-                profiles: [
-                    {
-                        name: userName,
-                        age: '—',
-                        location: 'Рядом с тобой',
-                        tags: selectedTags.map(t => {
-                            if (t === 'Ищу М') return '♂️ Ищу М';
-                            if (t === 'Ищу Ж') return '♀️ Ищу Ж';
-                            if (t === 'Компания') return '💬 Компания';
-                            if (t === 'Учеба') return '📚 Учеба';
-                            return t;
-                        }),
-                        status: status,
-                        avatarColor: 'purple',
-                        online: true
-                    }
-                ]
-            };
-
-            // Добавляем на карту
-            const circle = L.circle([newZone.lat, newZone.lng], {
-                radius: newZone.radius,
-                className: `zone-circle ${newZone.color}`,
-                fillColor: 'transparent',
-                fillOpacity: 0,
-                color: 'transparent',
-                weight: 0
-            }).addTo(map);
-
-            circle.on('click', () => openBottomSheet(newZone));
-
-            zoneLayers[newZone.id] = { circle, zone: newZone };
-        });
-
-        // ---------- TOAST ----------
-        const toast = document.getElementById('toast');
-        const toastText = document.getElementById('toastText');
-        let toastTimeout;
-
-        function showToast(message) {
-            toastText.textContent = message;
-            toast.classList.add('active');
-
-            clearTimeout(toastTimeout);
-            toastTimeout = setTimeout(() => {
-                toast.classList.remove('active');
-            }, 3000);
-        }
-
-        // ---------- HIDE LOADING ----------
-        setTimeout(() => {
-            document.getElementById('loadingScreen').classList.add('hidden');
-        }, 800);
-
-        // ---------- HANDLE VIEWPORT ----------
-        window.addEventListener('resize', () => {
-            map.invalidateSize();
-        });
-
-        // ---------- PREVENT PULL-TO-REFRESH ----------
-        document.addEventListener('touchmove', (e) => {
-            if (e.target.closest('.pills-container') || 
-                e.target.closest('.bottom-sheet') || 
-                e.target.closest('.modal')) {
-                return;
-            }
-            if (e.touches.length > 1) return;
-        }, { passive: true });
-
-    </script>
+  function deleteProfile(id) {
+    profiles = profiles.filter(p => p.id !== id);
+    localStorage.setItem('spotlight_profiles', JSON.stringify(profiles));
+    updateMapMarkers();
+    renderCardDeck();
+    renderAdminList();
+  }
+</script>
 </body>
 </html>
